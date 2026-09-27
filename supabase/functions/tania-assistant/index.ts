@@ -24,9 +24,18 @@ import { compactContext, handleTalent, loadTalentContext, type TalentKind } from
 const AI_BASE_URL = Deno.env.get("AI_BASE_URL")?.trim() || undefined;
 const MODEL = Deno.env.get("AI_MODEL")?.trim() || "claude-haiku-4-5";
 const AI_KEY = AI_BASE_URL ? Deno.env.get("AI_API_KEY") : Deno.env.get("ANTHROPIC_API_KEY");
+// Gateways differ in auth header: "x-api-key" (default) or "bearer"
+// (Authorization: Bearer …, e.g. Telkom MIDAS).
+const AI_AUTH_SCHEME = (Deno.env.get("AI_AUTH_SCHEME") ?? "x-api-key").trim().toLowerCase();
 
 function modelClient(): Anthropic | null {
-  return AI_KEY ? new Anthropic({ apiKey: AI_KEY, baseURL: AI_BASE_URL }) : null;
+  if (!AI_KEY) return null;
+  // Both credentials are always passed explicitly: the SDK would otherwise
+  // read ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN from the environment and
+  // could forward the Anthropic key to a third-party gateway.
+  return AI_BASE_URL && AI_AUTH_SCHEME === "bearer"
+    ? new Anthropic({ apiKey: null, authToken: AI_KEY, baseURL: AI_BASE_URL })
+    : new Anthropic({ apiKey: AI_KEY, authToken: null, baseURL: AI_BASE_URL });
 }
 const MAX_TOKENS = 1024;
 const HISTORY_LIMIT = 12;

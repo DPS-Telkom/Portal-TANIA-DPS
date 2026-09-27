@@ -687,4 +687,4 @@ Approval Gate baru:
 - **AG-08** — Sumber resmi performance & integrasi HRIS · Owner: HR + Corporate IT · Blocking: YA sebelum data performance produksi dipakai untuk keputusan.
 - **AG-09** — Kebijakan privasi Talent Profile (siapa melihat performance & penilaian; retensi) selaras UU PDP · Owner: HR + Legal · Blocking: YA sebelum go-live Talent Profile.
 
-Catatan C-6 (28 Sep 2026): endpoint AI kini dapat dikonfigurasi (Anthropic langsung atau gateway kompatibel Anthropic). Production saat ini diarahkan ke **ByNara router** (`router.bynara.id`). Karena data talent/HR/performance melewati pihak ketiga, **AG-09 juga mencakup persetujuan pemrosesan data oleh ByNara** (retensi, lokasi, DPA) sebelum go-live.
+Catatan C-6 (28 Sep 2026): endpoint AI kini dapat dikonfigurasi (Anthropic langsung atau gateway kompatibel Anthropic). Saat ini diarahkan ke **Telkom MIDAS (staging)** (`midas-stage.telkomdigital.id`, model `haiku-4.5`) — gateway internal Telkom, menggantikan percobaan ByNara. **AG-09 mencakup persetujuan pemrosesan data talent/HR/performance melalui MIDAS** serta penetapan endpoint produksi sebelum go-live.
