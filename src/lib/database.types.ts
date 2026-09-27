@@ -378,6 +378,7 @@ export type Database = {
           briefing_date: string
           content: string
           created_at: string
+          generation_count: number
           id: string
           input_tokens: number | null
           model: string | null
@@ -389,6 +390,7 @@ export type Database = {
           briefing_date?: string
           content: string
           created_at?: string
+          generation_count?: number
           id?: string
           input_tokens?: number | null
           model?: string | null
@@ -400,6 +402,7 @@ export type Database = {
           briefing_date?: string
           content?: string
           created_at?: string
+          generation_count?: number
           id?: string
           input_tokens?: number | null
           model?: string | null

@@ -50,6 +50,7 @@ Schema changes ONLY via files in `supabase/migrations/` (`YYYYMMDDHHMMSS_name.sq
 6. `20260927000006_revoke_trigger_function_execute.sql` — trigger functions not callable via `/rpc`
 7. `20260927000007_talent_workload.sql` — profile edit rights (owner: name/location; direct manager: squad/grade; admin: all), `app_settings` thresholds, `utilization_squad_monthly` view, `staffing_candidates(skill, min_level, month)` RPC
 8. `20260927000008_feasibility_budget.sql` — `feasibility_resource_check(case_id)` RPC, GO-only case links on budget entries (trigger), `budget_monthly` view (burn rate)
+9. `20260927000009_copilot_limits.sql` — copilot daily quotas in `app_settings` (50 chat questions, 5 briefing generations per user per day), `copilot_briefings.generation_count`
 
 Status: **applied** to project `tmzwlurjwantvuptpvpe` (https://tmzwlurjwantvuptpvpe.supabase.co). After any schema change run `supabase/tests/rls_matrix.sql` (transactional, rolls back) — it must end with `RLS matrix: ALL PASS`. Run it with `npx supabase db query --linked -f supabase/tests/rls_matrix.sql`.
 
@@ -195,3 +196,7 @@ docs/             # requirement doc, addendum, guides, runbooks
 - 2026-09-27: Budget entries may link only to feasibility cases decided GO (DB trigger `budget_entry_case_guard`); unlinked entries are allowed.
 - 2026-09-27: Resource check (PF-03): per required skill, people at ≥ min level with ≥50% free capacity in every month of the case period (start_month + duration, max 12 months); status cukup/parsial/kurang. Feasibility scores are labelled "indikatif" until AG-01 is signed.
 - 2026-09-27: Feasibility attachments live in bucket `attachments` under `feasibility/<case_id>/`; case pages are `/feasibility/case?id=` (`id=baru` for intake).
+- 2026-09-27: Copilot model = `claude-haiku-4-5` (PRD: Claude Haiku). Chat uses a manual tool loop (max 4 tool rounds, last round `tool_choice: none`) over 6 read-only tools; briefing is one call over a role-scoped snapshot. Guests/inactive users are rejected before any model call.
+- 2026-09-27: Copilot daily quota 50 questions/user/day and 5 briefing generations/user/day (admin-editable in Pengaturan). Briefing token counts accumulate across refreshes so `supabase/reports/copilot_cost_monthly.sql` stays accurate.
+- 2026-09-27: `tania-assistant` runs with `verify_jwt = false` (gateway verification doesn't support the project's asymmetric JWT signing keys); the function verifies every caller with `auth.getUser()` itself. CORS comes from the `ALLOWED_ORIGINS` secret. Model errors return a friendly message plus a non-secret `code` for diagnosis.
+- 2026-09-27: `supabase/` is excluded from the app tsconfig (Deno code); type-check the function with `deno check` (nodeModulesDir auto).
