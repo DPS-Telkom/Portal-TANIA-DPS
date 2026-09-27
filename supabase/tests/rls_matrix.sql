@@ -528,6 +528,134 @@ begin
 end $$;
 reset role;
 
+-- ===========================================================================
+-- Migration 7: profile edit rights, app_settings, staffing, squad heatmap
+-- ===========================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$ begin
+  begin
+    update public.profiles set squad = 'Squad X' where id = auth.uid();
+    raise exception 'FAIL: talent changed own squad';
+  exception when insufficient_privilege then null;
+  end;
+  update public.profiles set location = 'Bandung' where id = auth.uid();
+  if (select location from public.profiles where id = auth.uid()) <> 'Bandung' then
+    raise exception 'FAIL: talent cannot update own location';
+  end if;
+
+  -- own competency
+  insert into public.profile_skills (profile_id, skill_id, level, is_certified)
+  values (auth.uid(), (select id from public.skills where name = 'Data Analytics'), 4, true);
+
+  if (select count(*) from public.app_settings) < 4 then raise exception 'FAIL: member cannot read app_settings'; end if;
+  update public.app_settings set value = 1 where key = 'utilization_over_pct';
+  if (select value from public.app_settings where key = 'utilization_over_pct') <> 100 then
+    raise exception 'FAIL: talent changed app_settings';
+  end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+do $$ begin
+  update public.profiles set squad = 'Squad Alpha', grade = 'G7' where id = '00000000-0000-0000-0000-0000000000f1';
+  if (select squad from public.profiles where id = '00000000-0000-0000-0000-0000000000f1') <> 'Squad Alpha' then
+    raise exception 'FAIL: manager cannot set direct report squad';
+  end if;
+
+  begin
+    update public.profiles set full_name = 'Renamed' where id = '00000000-0000-0000-0000-0000000000f1';
+    raise exception 'FAIL: manager renamed a report';
+  exception when insufficient_privilege then null;
+  end;
+
+  update public.profiles set squad = 'Squad Z' where id = '00000000-0000-0000-0000-0000000000f2';
+  if (select squad from public.profiles where id = '00000000-0000-0000-0000-0000000000f2') is not distinct from 'Squad Z' then
+    raise exception 'FAIL: manager changed a non-report squad';
+  end if;
+
+  if not exists (
+    select 1 from public.staffing_candidates((select id from public.skills where name = 'Data Analytics'), 3,
+                                              date_trunc('month', current_date)::date)
+    where profile_id = '00000000-0000-0000-0000-0000000000f1' and skill_level = 4 and is_certified
+  ) then
+    raise exception 'FAIL: staffing_candidates missed a qualified talent';
+  end if;
+  if exists (
+    select 1 from public.staffing_candidates((select id from public.skills where name = 'Data Analytics'), 5,
+                                              date_trunc('month', current_date)::date)
+  ) then
+    raise exception 'FAIL: staffing_candidates ignored min level';
+  end if;
+  if exists (select 1 from public.staffing_candidates(null, 1, current_date - (extract(day from current_date)::int) + 2)) then
+    raise exception 'FAIL: staffing_candidates accepted a non-first-of-month date';
+  end if;
+end $$;
+reset role;
+
+-- allocation register as the UI writes it (upsert on the unique key)
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d1","role":"authenticated"}', true);
+do $$ begin
+  insert into public.allocations (profile_id, project_id, period_month, percent)
+  values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000aa01', date_trunc('month', current_date)::date, 40)
+  on conflict (profile_id, project_id, period_month) do update set percent = excluded.percent;
+  insert into public.allocations (profile_id, project_id, period_month, percent)
+  values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000aa01', date_trunc('month', current_date)::date, 70)
+  on conflict (profile_id, project_id, period_month) do update set percent = excluded.percent;
+  if (select percent from public.allocations where profile_id = '00000000-0000-0000-0000-0000000000f1'
+      and project_id = '00000000-0000-0000-0000-00000000aa01' and period_month = date_trunc('month', current_date)::date) <> 70 then
+    raise exception 'FAIL: pm allocation upsert did not update';
+  end if;
+
+  begin
+    insert into public.allocations (profile_id, project_id, period_month, percent)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000aa02', date_trunc('month', current_date)::date, 10);
+    raise exception 'FAIL: pm allocated to a project they do not manage';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    insert into public.allocations (profile_id, project_id, period_month, percent)
+    values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000aa01', current_date - (extract(day from current_date)::int) + 2, 10);
+    raise exception 'FAIL: allocation accepted a non-first-of-month period';
+  exception when check_violation or insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000092","role":"authenticated"}', true);
+do $$ begin
+  if exists (select 1 from public.app_settings) then raise exception 'FAIL: guest reads app_settings'; end if;
+  if exists (select 1 from public.staffing_candidates()) then raise exception 'FAIL: guest gets staffing candidates'; end if;
+  if exists (select 1 from public.utilization_squad_monthly) then raise exception 'FAIL: guest reads squad heatmap'; end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated"}', true);
+do $$ begin
+  if not exists (select 1 from public.utilization_squad_monthly where squad = 'Squad Alpha') then
+    raise exception 'FAIL: executive cannot read squad heatmap';
+  end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+do $$ begin
+  update public.app_settings set value = 110 where key = 'utilization_over_pct';
+  if (select value from public.app_settings where key = 'utilization_over_pct') <> 110 then
+    raise exception 'FAIL: admin cannot change app_settings';
+  end if;
+  if (select updated_by from public.app_settings where key = 'utilization_over_pct') is distinct from auth.uid() then
+    raise exception 'FAIL: app_settings.updated_by not stamped';
+  end if;
+end $$;
+reset role;
+
 select 'RLS matrix: ALL PASS' as result;
 
 rollback;

@@ -48,6 +48,7 @@ Schema changes ONLY via files in `supabase/migrations/` (`YYYYMMDDHHMMSS_name.sq
 4. `20260927000004_avatar_copilot.sql` — chat_conversations, chat_messages, copilot_briefings
 5. `20260927000005_timesheet_compliance.sql` — `utilization_monthly` v2 (approved leave hours reduce capacity; adds `leave_hours`, `base_capacity_hours`), `timesheet_compliance(week_start)` RPC (security invoker)
 6. `20260927000006_revoke_trigger_function_execute.sql` — trigger functions not callable via `/rpc`
+7. `20260927000007_talent_workload.sql` — profile edit rights (owner: name/location; direct manager: squad/grade; admin: all), `app_settings` thresholds, `utilization_squad_monthly` view, `staffing_candidates(skill, min_level, month)` RPC
 
 Status: **applied** to project `tmzwlurjwantvuptpvpe` (https://tmzwlurjwantvuptpvpe.supabase.co). After any schema change run `supabase/tests/rls_matrix.sql` (transactional, rolls back) — it must end with `RLS matrix: ALL PASS`. Run it with `npx supabase db query --linked -f supabase/tests/rls_matrix.sql`.
 
@@ -185,3 +186,7 @@ docs/             # requirement doc, addendum, guides, runbooks
 - 2026-09-27: Timesheet compliance covers active talent, pm, manager and chapter_lead (executive and admin are not expected to submit). Deadline: Friday.
 - 2026-09-27: Master data (projects, activities) is managed on `/admin` (admin UI only for now; RLS also lets manager/chapter_lead write). Projects are never deleted — status completed/cancelled instead.
 - 2026-09-27: Don't run `npm run build` while `npm run dev` is running — both write `.next/` and the dev server breaks.
+- 2026-09-27: Squad and grade are set by admin or the person's direct manager (guard + `profiles_update_manager` policy); owners edit only full_name and location.
+- 2026-09-27: Thresholds live in `app_settings` (admin-editable on /admin → Pengaturan): overload >100%, underload <60%, budget 80%/100%. Underload is flagged only for completed months; overload on planned (current/future) and actual (past/current).
+- 2026-09-27: Staffing candidates = active talent, pm, manager; ranked by free capacity (100 − allocated %) then skill level. `staffing_candidates()` is the single source for TM-04 and the future PF-03 resource check.
+- 2026-09-27: Talent profile lives at `/talent/profil?id=` (query param, because static export cannot pre-render per-user routes).

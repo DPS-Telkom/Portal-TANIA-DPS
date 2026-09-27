@@ -124,6 +124,38 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          key: string
+          label: string
+          updated_at: string
+          updated_by: string | null
+          value: number
+        }
+        Insert: {
+          key: string
+          label: string
+          updated_at?: string
+          updated_by?: string | null
+          value: number
+        }
+        Update: {
+          key?: string
+          label?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -799,6 +831,20 @@ export type Database = {
         }
         Relationships: []
       }
+      utilization_squad_monthly: {
+        Row: {
+          approved_hours: number | null
+          avg_planned_pct: number | null
+          avg_utilization_pct: number | null
+          capacity_hours: number | null
+          max_planned_pct: number | null
+          max_utilization_pct: number | null
+          people: number | null
+          period_month: string | null
+          squad: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_my_role: {
@@ -811,6 +857,21 @@ export type Database = {
       }
       is_manager_of: { Args: { target: string }; Returns: boolean }
       is_member: { Args: never; Returns: boolean }
+      staffing_candidates: {
+        Args: { p_min_level?: number; p_month?: string; p_skill_id?: string }
+        Returns: {
+          allocated_pct: number
+          available_pct: number
+          email: string
+          full_name: string
+          grade: string
+          is_certified: boolean
+          profile_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          skill_level: number
+          squad: string
+        }[]
+      }
       timesheet_compliance: {
         Args: { week_start: string }
         Returns: {
