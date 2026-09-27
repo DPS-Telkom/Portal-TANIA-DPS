@@ -14,13 +14,15 @@
 import Anthropic from "npm:@anthropic-ai/sdk@0.128.0";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.117.2";
 
+import { compactContext, handleTalent, loadTalentContext, type TalentKind } from "./talent.ts";
+
 const MODEL = "claude-haiku-4-5";
 const MAX_TOKENS = 1024;
 const HISTORY_LIMIT = 12;
 const MAX_QUESTION_CHARS = 2000;
 const MAX_TOOL_ROUNDS = 4;
 const MAX_TOOL_RESULT_CHARS = 8000;
-const MEMBER_ROLES = ["talent", "pm", "manager", "chapter_lead", "executive", "admin"];
+const MEMBER_ROLES = ["talent", "pm", "manager", "chapter_lead", "hr", "executive", "admin"];
 const BUDGET_ROLES = ["pm", "manager", "chapter_lead", "executive", "admin"];
 const TEAM_ROLES = ["manager", "chapter_lead", "executive", "admin"];
 
@@ -31,6 +33,7 @@ const ROLE_LABELS: Record<string, string> = {
   manager: "Manager",
   pm: "Project Manager",
   talent: "Talent",
+  hr: "HR / Talent Management",
 };
 
 // ---------------------------------------------------------------------------
@@ -149,6 +152,16 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_talent_profile",
+    description:
+      "Talent Profile 360°: posisi & riwayat karier, capability/kompetensi/expertise (level, target, sumber penilaian), sertifikasi (status), project, performance history (read-only), competency gap, evidence, development plan. Default profil pengguna sendiri; isi `name` untuk talent lain — hanya tersedia bila pengguna berhak (diri sendiri, reporting line, Chapter Leader, HR, Executive, Admin).",
+    input_schema: {
+      type: "object",
+      properties: { name: { type: "string", description: "Nama talent (opsional); kosong = diri sendiri" } },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_budget_summary",
     description:
       "Posisi budget per budget line: plan, komitmen, realisasi, sisa, % komitmen, % realisasi, beserta threshold kuning/merah. Talent tidak punya akses budget.",
@@ -256,6 +269,25 @@ async function runTool(db: SupabaseClient, caller: Caller, name: string, input: 
       const { data, error } = await q;
       if (error) throw error;
       return { note: "Skor indikatif: bobot 25/25/20/15/15 menunggu AG-01.", cases: data ?? [] };
+    }
+    case "get_talent_profile": {
+      let profileId = caller.id;
+      if (typeof input.name === "string" && input.name.trim()) {
+        const { data } = await db
+          .from("profiles")
+          .select("id, full_name")
+          .ilike("full_name", `%${input.name.trim().replace(/[%_,()]/g, "")}%`)
+          .limit(2);
+        if (!data?.length) return { error: `Talent '${input.name}' tidak ditemukan.` };
+        if (data.length > 1) return { error: "Nama cocok dengan lebih dari satu talent; minta nama lengkap." };
+        profileId = data[0].id;
+      }
+      const ctx = await loadTalentContext(db, profileId);
+      if (!ctx) return { access: "none", message: "Pengguna tidak berhak melihat Talent Profile ini." };
+      return {
+        note: "Bedakan FACT (data context), INFERENCE, RECOMMENDATION, UNKNOWN. Penilaian source=self adalah klaim talent sendiri.",
+        context: compactContext(ctx),
+      };
     }
     case "get_budget_summary": {
       if (!BUDGET_ROLES.includes(caller.role)) {
@@ -429,7 +461,14 @@ Deno.serve(async (req) => {
   }
   const caller: Caller = { id: profile.id, fullName: profile.full_name, role: profile.role };
 
-  let body: { mode?: string; message?: string; conversation_id?: string; force?: boolean };
+  let body: {
+    mode?: string;
+    message?: string;
+    conversation_id?: string;
+    force?: boolean;
+    kind?: string;
+    profile_id?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -499,6 +538,24 @@ Deno.serve(async (req) => {
         });
     if (write.error) console.error("briefing cache write failed", write.error.message);
     return json({ reply, cached: false }, 200, origin);
+  }
+
+  // ------------------------------------------------------------- talent
+  if (body.mode === "talent") {
+    const kind = body.kind as TalentKind;
+    if (!["ask", "insight", "journey"].includes(kind) || typeof body.profile_id !== "string") {
+      return json({ error: "Permintaan Talent AI tidak valid." }, 400, origin);
+    }
+    const out = await handleTalent(
+      db,
+      apiKey ? new Anthropic({ apiKey }) : null,
+      { kind, profileId: body.profile_id, question: body.message, force: body.force },
+      { daily: setting("copilot_daily_message_limit", 50), insightPerDay: setting("copilot_daily_briefing_limit", 5) },
+      MODEL,
+      MAX_TOKENS,
+      (e) => ({ error: modelErrorMessage(e), code: modelErrorCode(e) }),
+    );
+    return json(out.body, out.status, origin);
   }
 
   // ------------------------------------------------------------- chat
