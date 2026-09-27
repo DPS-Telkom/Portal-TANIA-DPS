@@ -23,7 +23,7 @@ Requirement IDs (TM-01, WA-02, PF-04, AV-03, XM-01, …) refer to **`docs/PRD.md
 - **UI**: Tailwind CSS + shadcn/ui. Accent color Telkom red `#E1231A`. UI text: **Bahasa Indonesia**. Code, comments, commits: **English**.
 - **Backend**: Supabase only (PostgreSQL + Auth + Storage + Edge Functions) via `@supabase/supabase-js`. No custom API layer anywhere.
 - **Hosting**: Vercel Hobby (free) with GitHub auto-deploy — every push to `main` deploys automatically; no deploy quota. Hobby terms are non-commercial: flag Vercel Pro when TANIA becomes an official system. TANIA remains a **static export** on Vercel — never enable Vercel server features (SSR, serverless/edge functions on Vercel); the only server-side code stays in the Supabase Edge Function.
-- **AI**: One Supabase Edge Function `tania-assistant` calling the Anthropic API (Claude Haiku). Nothing else calls any LLM.
+- **AI**: One Supabase Edge Function `tania-assistant` is the only LLM caller. It speaks the Anthropic Messages API (Anthropic SDK) either to Anthropic directly (default, `ANTHROPIC_API_KEY`) or to an Anthropic-compatible gateway configured by secrets `AI_BASE_URL` (host only, no `/v1`), `AI_API_KEY`, `AI_MODEL` — currently the ByNara router. Nothing else calls any LLM.
 
 ## 2. Security rules (non-negotiable)
 
@@ -99,7 +99,7 @@ Both are `security_invoker` → results already respect the caller's RLS.
 
 ## 4. Avatar / Copilot rules
 
-- The Anthropic API key exists ONLY as a Supabase Edge Function secret (`supabase secrets set ANTHROPIC_API_KEY=…`). Never in frontend, `NEXT_PUBLIC_*`, or the repo.
+- AI keys (`ANTHROPIC_API_KEY`, `AI_API_KEY`) exist ONLY as Supabase Edge Function secrets. Never in frontend, `NEXT_PUBLIC_*`, or the repo. When `AI_BASE_URL` is set the function uses `AI_API_KEY` only — the Anthropic key is never sent to a gateway.
 - All Avatar DB reads use the **caller's JWT** (RLS enforced). Never use `service_role` inside `tania-assistant`.
 - Avatar is **READ-ONLY**. Do not add tools that insert/update/delete. For actions, the bot directs users to the module page. (A future "Flows/actions with human approval" phase requires explicit approval first.)
 - Endpoint contract — `POST /functions/v1/tania-assistant`, header `Authorization: Bearer <session access_token>`:
@@ -208,3 +208,4 @@ docs/             # requirement doc, addendum, guides, runbooks
 - 2026-09-28: Assessment rules: owners self-assess (`source = self`); targets only by manager line/lead/HR/admin; gap = current − target on 0–100 (score, else level × 20), computed by the `competency_gaps` view. Certifications entered by talent stay `pending` until HR verifies; editing a verified certificate resets it to pending. Evidence is verified by the line/lead/HR, never by the talent.
 - 2026-09-28: Performance history is HR-entered (`official`/`manual`), read-only for everyone else, audited; the AI has no write path. Talent AI (`mode: talent`) answers only from `talent_context()` with the caller's JWT and returns FACT / INFERENCE / RECOMMENDATION / UNKNOWN JSON (structured outputs). AI Insight is cached per viewer/profile/day; ask + journey count toward the daily copilot quota. A recommended journey becomes a development plan only when a user saves it.
 - 2026-09-28: Unit tests use Vitest (`npm test`, `src/**/*.test.ts`); pure logic lives in `src/lib/talent-profile/calc.ts` and `permissions.ts`. Demo talent data only via `scripts/seed-talent-demo.mjs` (local, service role, `is_demo`, `--clean`).
+- 2026-09-28: AI endpoint is configuration: `AI_BASE_URL=https://router.bynara.id` (ByNara, Anthropic-compatible `/v1/messages`), key `AI_API_KEY`, model `AI_MODEL` (default `claude-haiku-4-5`). Unset `AI_BASE_URL` to return to Anthropic directly. Talent AI retries once without `output_config` if the gateway rejects structured outputs, then validates the JSON. RISK (open, AG-09): talent/HR/performance data now transits a third-party router — confirm ByNara data retention & location before production use.

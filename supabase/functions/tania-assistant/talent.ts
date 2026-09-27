@@ -217,18 +217,34 @@ export async function handleTalent(
     .filter(Boolean)
     .join("\n");
 
+  const maxOut = req.kind === "journey" ? Math.max(maxTokens, 1536) : maxTokens;
   let message: Anthropic.Message;
   try {
     message = await anthropic.messages.create({
       model,
-      max_tokens: req.kind === "journey" ? Math.max(maxTokens, 1536) : maxTokens,
+      max_tokens: maxOut,
       system: RULES,
       output_config: { format: { type: "json_schema", schema: SCHEMAS[req.kind] } },
       messages: [{ role: "user", content: userText }],
     });
   } catch (e) {
-    console.error("talent model error", e instanceof Anthropic.APIError ? e.status : e);
-    return { status: 502, body: errorBody(e) };
+    // Gateways/models without structured outputs: retry once with the schema
+    // in the prompt; the response is still parsed and validated below.
+    if (!(e instanceof Anthropic.BadRequestError)) {
+      console.error("talent model error", e instanceof Anthropic.APIError ? e.status : e);
+      return { status: 502, body: errorBody(e) };
+    }
+    try {
+      message = await anthropic.messages.create({
+        model,
+        max_tokens: maxOut,
+        system: `${RULES}\nBalas HANYA dengan satu objek JSON valid (tanpa teks lain, tanpa markdown) yang mengikuti JSON Schema berikut:\n${JSON.stringify(SCHEMAS[req.kind])}`,
+        messages: [{ role: "user", content: userText }],
+      });
+    } catch (e2) {
+      console.error("talent model error (fallback)", e2 instanceof Anthropic.APIError ? e2.status : e2);
+      return { status: 502, body: errorBody(e2) };
+    }
   }
 
   if (message.stop_reason === "refusal") {
@@ -240,7 +256,10 @@ export async function handleTalent(
     .join("");
   let result: Record<string, unknown>;
   try {
-    result = JSON.parse(text);
+    // Tolerate a ```json fence from models without structured outputs.
+    const body = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    result = JSON.parse(body);
+    if (!result || typeof result !== "object" || typeof result.answer !== "string") throw new Error("shape");
   } catch {
     return {
       status: 502,

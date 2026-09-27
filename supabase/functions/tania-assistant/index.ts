@@ -16,7 +16,18 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.1
 
 import { compactContext, handleTalent, loadTalentContext, type TalentKind } from "./talent.ts";
 
-const MODEL = "claude-haiku-4-5";
+// Provider is configuration, not code (decision 2026-09-28):
+//   default     → Anthropic API directly with ANTHROPIC_API_KEY
+//   AI_BASE_URL → an Anthropic-compatible gateway (e.g. ByNara router) with
+//                 its OWN key AI_API_KEY. The Anthropic key is never sent to
+//                 a third-party gateway.
+const AI_BASE_URL = Deno.env.get("AI_BASE_URL")?.trim() || undefined;
+const MODEL = Deno.env.get("AI_MODEL")?.trim() || "claude-haiku-4-5";
+const AI_KEY = AI_BASE_URL ? Deno.env.get("AI_API_KEY") : Deno.env.get("ANTHROPIC_API_KEY");
+
+function modelClient(): Anthropic | null {
+  return AI_KEY ? new Anthropic({ apiKey: AI_KEY, baseURL: AI_BASE_URL }) : null;
+}
 const MAX_TOKENS = 1024;
 const HISTORY_LIMIT = 12;
 const MAX_QUESTION_CHARS = 2000;
@@ -405,8 +416,8 @@ async function briefingSnapshot(db: SupabaseClient, caller: Caller) {
 
 /** User-facing message for a failed model call. */
 function modelErrorMessage(e: unknown): string {
-  if (e instanceof Anthropic.APIError && /credit balance/i.test(String(e.message))) {
-    return "Copilot sementara tidak aktif: kredit Anthropic API habis. Hubungi Admin TANIA.";
+  if (e instanceof Anthropic.APIError && /credit balance|insufficient|quota|saldo|balance/i.test(String(e.message))) {
+    return "Copilot sementara tidak aktif: kredit penyedia AI habis. Hubungi Admin TANIA.";
   }
   if (e instanceof Anthropic.RateLimitError) return "Copilot sedang sibuk. Coba lagi dalam beberapa saat.";
   return "Copilot sedang tidak tersedia. Coba lagi nanti.";
@@ -415,11 +426,11 @@ function modelErrorMessage(e: unknown): string {
 /** Non-secret diagnostic code for a failed model call (shown to the UI). */
 function modelErrorCode(e: unknown): string {
   if (e instanceof Anthropic.APIError) {
-    // Anthropic error messages carry no secrets (e.g. "credit balance is too low").
+    // Provider error messages carry no secrets (e.g. "credit balance is too low").
     const detail = String(e.message ?? "").replace(/\s+/g, " ").slice(0, 160);
-    return `anthropic_${e.status ?? "error"}: ${detail}`;
+    return `ai_${e.status ?? "error"}: ${detail}`;
   }
-  return "anthropic_unreachable";
+  return "ai_unreachable";
 }
 
 function textOf(message: Anthropic.Message): string {
@@ -475,7 +486,7 @@ Deno.serve(async (req) => {
     return json({ error: "Permintaan tidak valid." }, 400, origin);
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const anthropic = modelClient();
   const { data: settings } = await db.from("app_settings").select("key, value");
   const setting = (k: string, d: number) => Number(settings?.find((r) => r.key === k)?.value ?? d);
 
@@ -497,10 +508,9 @@ Deno.serve(async (req) => {
         origin,
       );
     }
-    if (!apiKey) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
+    if (!anthropic) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
 
     const snapshot = await briefingSnapshot(db, caller);
-    const anthropic = new Anthropic({ apiKey });
     let message: Anthropic.Message;
     try {
       message = await anthropic.messages.create({
@@ -548,7 +558,7 @@ Deno.serve(async (req) => {
     }
     const out = await handleTalent(
       db,
-      apiKey ? new Anthropic({ apiKey }) : null,
+      anthropic,
       { kind, profileId: body.profile_id, question: body.message, force: body.force },
       { daily: setting("copilot_daily_message_limit", 50), insightPerDay: setting("copilot_daily_briefing_limit", 5) },
       MODEL,
@@ -578,7 +588,7 @@ Deno.serve(async (req) => {
   if ((usedToday ?? 0) >= limit) {
     return json({ error: `Batas ${limit} pertanyaan per hari sudah tercapai. Coba lagi besok.` }, 429, origin);
   }
-  if (!apiKey) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
+  if (!anthropic) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
 
   // Conversation: reuse only if it belongs to the caller (RLS), else create.
   let conversationId: string | null = null;
@@ -613,7 +623,6 @@ Deno.serve(async (req) => {
   if (userMsgError) return json({ error: "Gagal menyimpan pertanyaan." }, 500, origin);
 
   const messages: Anthropic.MessageParam[] = [...history, { role: "user", content: question }];
-  const anthropic = new Anthropic({ apiKey });
   const system = chatSystem(caller);
   let inputTokens = 0;
   let outputTokens = 0;
