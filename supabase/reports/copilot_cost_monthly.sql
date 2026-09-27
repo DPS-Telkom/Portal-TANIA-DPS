@@ -1,6 +1,7 @@
 -- AV-06 — Copilot monthly cost report. Run in the Supabase SQL Editor (as the
 -- project owner). Aggregates token counts only; it never selects message or
--- briefing content, so chat privacy (AG-06) is preserved.
+-- briefing content, so chat privacy (AG-06) is preserved. Includes Talent AI
+-- (talent_ai_requests: ask / insight / journey).
 -- Prices: Claude Haiku 4.5, USD per 1M tokens (update if the price changes).
 
 with prices as (
@@ -14,6 +15,10 @@ usage as (
   select date_trunc('month', created_at)::date, 'briefing',
          coalesce(input_tokens, 0), coalesce(output_tokens, 0), user_id
   from public.copilot_briefings
+  union all
+  select date_trunc('month', created_at)::date, 'talent_' || kind,
+         coalesce(input_tokens, 0), coalesce(output_tokens, 0), user_id
+  from public.talent_ai_requests
 )
 select
   u.month,

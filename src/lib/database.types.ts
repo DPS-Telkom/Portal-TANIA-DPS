@@ -420,6 +420,135 @@ export type Database = {
           },
         ]
       }
+      development_activities: {
+        Row: {
+          activity_type: string
+          completed_at: string | null
+          created_at: string
+          due_date: string | null
+          evidence_url: string | null
+          id: string
+          month_index: number | null
+          notes: string | null
+          plan_id: string
+          skill_id: string | null
+          sort_order: number
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          activity_type?: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          evidence_url?: string | null
+          id?: string
+          month_index?: number | null
+          notes?: string | null
+          plan_id: string
+          skill_id?: string | null
+          sort_order?: number
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          activity_type?: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          evidence_url?: string | null
+          id?: string
+          month_index?: number | null
+          notes?: string | null
+          plan_id?: string
+          skill_id?: string | null
+          sort_order?: number
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "development_activities_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "development_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "development_activities_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      development_plans: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          id: string
+          objective: string | null
+          origin: string
+          profile_id: string
+          start_date: string | null
+          status: string
+          target_role: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          objective?: string | null
+          origin?: string
+          profile_id: string
+          start_date?: string | null
+          status?: string
+          target_role?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          objective?: string | null
+          origin?: string
+          profile_id?: string
+          start_date?: string | null
+          status?: string
+          target_role?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "development_plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "development_plans_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feasibility_cases: {
         Row: {
           created_at: string
@@ -553,35 +682,173 @@ export type Database = {
           },
         ]
       }
-      profile_skills: {
+      level_scales: {
         Row: {
-          certification_name: string | null
-          created_at: string
-          is_certified: boolean
+          description: string | null
+          label: string
           level: number
-          profile_id: string
-          skill_id: string
           updated_at: string
         }
         Insert: {
-          certification_name?: string | null
-          created_at?: string
-          is_certified?: boolean
+          description?: string | null
+          label: string
           level: number
-          profile_id: string
-          skill_id: string
           updated_at?: string
         }
         Update: {
-          certification_name?: string | null
-          created_at?: string
-          is_certified?: boolean
+          description?: string | null
+          label?: string
           level?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      performance_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          overall_score: number | null
+          period_label: string | null
+          period_year: number
+          profile_id: string
+          rating: string | null
+          recorded_by: string | null
+          source: string
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          overall_score?: number | null
+          period_label?: string | null
+          period_year: number
+          profile_id: string
+          rating?: string | null
+          recorded_by?: string | null
+          source?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          overall_score?: number | null
+          period_label?: string | null
+          period_year?: number
           profile_id?: string
-          skill_id?: string
+          rating?: string | null
+          recorded_by?: string | null
+          source?: string
+          summary?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "performance_reviews_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "performance_reviews_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      performance_scores: {
+        Row: {
+          dimension: string
+          review_id: string
+          score: number
+        }
+        Insert: {
+          dimension: string
+          review_id: string
+          score: number
+        }
+        Update: {
+          dimension?: string
+          review_id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_scores_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "performance_reviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_skills: {
+        Row: {
+          assessed_at: string | null
+          assessed_by: string | null
+          certification_name: string | null
+          confidence: string | null
+          created_at: string
+          is_certified: boolean
+          last_used: string | null
+          level: number
+          profile_id: string
+          score: number | null
+          skill_id: string
+          source: string
+          target_level: number | null
+          target_score: number | null
+          updated_at: string
+          years_experience: number | null
+        }
+        Insert: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          certification_name?: string | null
+          confidence?: string | null
+          created_at?: string
+          is_certified?: boolean
+          last_used?: string | null
+          level: number
+          profile_id: string
+          score?: number | null
+          skill_id: string
+          source?: string
+          target_level?: number | null
+          target_score?: number | null
+          updated_at?: string
+          years_experience?: number | null
+        }
+        Update: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          certification_name?: string | null
+          confidence?: string | null
+          created_at?: string
+          is_certified?: boolean
+          last_used?: string | null
+          level?: number
+          profile_id?: string
+          score?: number | null
+          skill_id?: string
+          source?: string
+          target_level?: number | null
+          target_score?: number | null
+          updated_at?: string
+          years_experience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_skills_assessed_by_fkey"
+            columns: ["assessed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profile_skills_profile_id_fkey"
             columns: ["profile_id"]
@@ -600,40 +867,61 @@ export type Database = {
       }
       profiles: {
         Row: {
+          career_level: string | null
           created_at: string
           email: string | null
+          employee_id: string | null
           full_name: string
           grade: string | null
           id: string
           is_active: boolean
+          is_demo: boolean
+          join_date: string | null
           location: string | null
           manager_id: string | null
+          organization: string | null
+          photo_path: string | null
+          position_title: string | null
           role: Database["public"]["Enums"]["user_role"]
           squad: string | null
           updated_at: string
         }
         Insert: {
+          career_level?: string | null
           created_at?: string
           email?: string | null
+          employee_id?: string | null
           full_name?: string
           grade?: string | null
           id: string
           is_active?: boolean
+          is_demo?: boolean
+          join_date?: string | null
           location?: string | null
           manager_id?: string | null
+          organization?: string | null
+          photo_path?: string | null
+          position_title?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           squad?: string | null
           updated_at?: string
         }
         Update: {
+          career_level?: string | null
           created_at?: string
           email?: string | null
+          employee_id?: string | null
           full_name?: string
           grade?: string | null
           id?: string
           is_active?: boolean
+          is_demo?: boolean
+          join_date?: string | null
           location?: string | null
           manager_id?: string | null
+          organization?: string | null
+          photo_path?: string | null
+          position_title?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           squad?: string | null
           updated_at?: string
@@ -703,6 +991,7 @@ export type Database = {
           category: string | null
           created_at: string
           id: string
+          kind: string
           name: string
           updated_at: string
         }
@@ -710,6 +999,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           id?: string
+          kind?: string
           name: string
           updated_at?: string
         }
@@ -717,10 +1007,401 @@ export type Database = {
           category?: string | null
           created_at?: string
           id?: string
+          kind?: string
           name?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      talent_ai_requests: {
+        Row: {
+          created_at: string
+          id: string
+          input_tokens: number | null
+          kind: string
+          model: string | null
+          output_tokens: number | null
+          profile_id: string
+          question: string | null
+          request_date: string
+          response: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          kind: string
+          model?: string | null
+          output_tokens?: number | null
+          profile_id: string
+          question?: string | null
+          request_date?: string
+          response: Json
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          kind?: string
+          model?: string | null
+          output_tokens?: number | null
+          profile_id?: string
+          question?: string | null
+          request_date?: string
+          response?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_ai_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_ai_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_certifications: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credential_id: string | null
+          expires_on: string | null
+          file_path: string | null
+          id: string
+          issued_on: string | null
+          issuer: string | null
+          name: string
+          profile_id: string
+          skill_id: string | null
+          updated_at: string
+          url: string | null
+          verification: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credential_id?: string | null
+          expires_on?: string | null
+          file_path?: string | null
+          id?: string
+          issued_on?: string | null
+          issuer?: string | null
+          name: string
+          profile_id: string
+          skill_id?: string | null
+          updated_at?: string
+          url?: string | null
+          verification?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credential_id?: string | null
+          expires_on?: string | null
+          file_path?: string | null
+          id?: string
+          issued_on?: string | null
+          issuer?: string | null
+          name?: string
+          profile_id?: string
+          skill_id?: string | null
+          updated_at?: string
+          url?: string | null
+          verification?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_certifications_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_certifications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_certifications_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_certifications_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_evidence: {
+        Row: {
+          certification_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          evidence_date: string | null
+          evidence_type: string
+          id: string
+          position_id: string | null
+          profile_id: string
+          skill_id: string | null
+          talent_project_id: string | null
+          title: string
+          updated_at: string
+          url: string | null
+          verified: boolean
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          certification_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          evidence_date?: string | null
+          evidence_type: string
+          id?: string
+          position_id?: string | null
+          profile_id: string
+          skill_id?: string | null
+          talent_project_id?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          certification_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          evidence_date?: string | null
+          evidence_type?: string
+          id?: string
+          position_id?: string | null
+          profile_id?: string
+          skill_id?: string | null
+          talent_project_id?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_evidence_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "talent_certification_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_evidence_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "talent_certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_evidence_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_evidence_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "talent_positions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_evidence_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_evidence_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_evidence_talent_project_id_fkey"
+            columns: ["talent_project_id"]
+            isOneToOne: false
+            referencedRelation: "talent_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_evidence_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_positions: {
+        Row: {
+          achievements: string | null
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          organization: string | null
+          position_title: string
+          profile_id: string
+          responsibilities: string | null
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          achievements?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          organization?: string | null
+          position_title: string
+          profile_id: string
+          responsibilities?: string | null
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          achievements?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          organization?: string | null
+          position_title?: string
+          profile_id?: string
+          responsibilities?: string | null
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_positions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_positions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_projects: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          domain: string | null
+          end_date: string | null
+          id: string
+          name: string
+          organization: string | null
+          outcomes: string | null
+          profile_id: string
+          project_id: string | null
+          responsibilities: string | null
+          role: string | null
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          domain?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          organization?: string | null
+          outcomes?: string | null
+          profile_id: string
+          project_id?: string | null
+          responsibilities?: string | null
+          role?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          domain?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          organization?: string | null
+          outcomes?: string | null
+          profile_id?: string
+          project_id?: string | null
+          responsibilities?: string | null
+          role?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_projects_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_projects_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_projects_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       timesheets: {
         Row: {
@@ -846,6 +1527,128 @@ export type Database = {
         }
         Relationships: []
       }
+      competency_gaps: {
+        Row: {
+          assessed_at: string | null
+          category: string | null
+          current_level: number | null
+          current_value: number | null
+          evidence_count: number | null
+          gap: number | null
+          kind: string | null
+          profile_id: string | null
+          skill_id: string | null
+          skill_name: string | null
+          source: string | null
+          target_level: number | null
+          target_value: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_skills_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_certification_status: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          credential_id: string | null
+          expires_on: string | null
+          file_path: string | null
+          id: string | null
+          issued_on: string | null
+          issuer: string | null
+          name: string | null
+          profile_id: string | null
+          skill_id: string | null
+          status: string | null
+          updated_at: string | null
+          url: string | null
+          verification: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          credential_id?: string | null
+          expires_on?: string | null
+          file_path?: string | null
+          id?: string | null
+          issued_on?: string | null
+          issuer?: string | null
+          name?: string | null
+          profile_id?: string | null
+          skill_id?: string | null
+          status?: never
+          updated_at?: string | null
+          url?: string | null
+          verification?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          credential_id?: string | null
+          expires_on?: string | null
+          file_path?: string | null
+          id?: string | null
+          issued_on?: string | null
+          issuer?: string | null
+          name?: string | null
+          profile_id?: string | null
+          skill_id?: string | null
+          status?: never
+          updated_at?: string | null
+          url?: string | null
+          verification?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_certifications_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_certifications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_certifications_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_certifications_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       utilization_monthly: {
         Row: {
           approved_hours: number | null
@@ -877,6 +1680,12 @@ export type Database = {
       }
     }
     Functions: {
+      can_develop_talent: { Args: { target: string }; Returns: boolean }
+      can_view_talent: { Args: { target: string }; Returns: boolean }
+      certification_status: {
+        Args: { p_expires_on: string; p_verification: string }
+        Returns: string
+      }
       feasibility_resource_check: {
         Args: { p_case_id: string }
         Returns: {
@@ -899,6 +1708,7 @@ export type Database = {
         Args: { roles: Database["public"]["Enums"]["user_role"][] }
         Returns: boolean
       }
+      is_in_reporting_line: { Args: { target: string }; Returns: boolean }
       is_manager_of: { Args: { target: string }; Returns: boolean }
       is_member: { Args: never; Returns: boolean }
       staffing_candidates: {
@@ -916,6 +1726,8 @@ export type Database = {
           squad: string
         }[]
       }
+      talent_context: { Args: { p_profile_id: string }; Returns: Json }
+      talent_file_owner: { Args: { object_name: string }; Returns: string }
       timesheet_compliance: {
         Args: { week_start: string }
         Returns: {
@@ -952,6 +1764,7 @@ export type Database = {
         | "manager"
         | "pm"
         | "talent"
+        | "hr"
         | "admin"
         | "guest"
     }
@@ -1108,6 +1921,7 @@ export const Constants = {
         "manager",
         "pm",
         "talent",
+        "hr",
         "admin",
         "guest",
       ],

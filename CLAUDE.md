@@ -11,7 +11,7 @@ Internal decision-support portal for Chapter Product & Solution (DPS), Digital P
 | Budget Control | BC | Plan vs commitment vs realization per program/category, threshold alerts |
 | Avatar / Copilot | AV | AI assistant: chat widget + proactive dashboard briefing panel |
 
-Requirement IDs (TM-01, WA-02, PF-04, AV-03, XM-01, …) refer to **`docs/PRD.md` (PRD v3.0 — Development Ready, As-Architected)**, which consolidates and supersedes Requirement Document v1.0, PRD v2.0, and the Avatar Addendum. When implementing a feature, name the requirement ID it satisfies in the commit message.
+Requirement IDs (TM-01, WA-02, PF-04, AV-03, XM-01, …) refer to **`docs/PRD.md` (PRD v3.0 + Addendum B v3.1 + Addendum C v3.2)**; Talent Profile IDs (TP-001…) refer to `docs/prd-talent.md`, which consolidates and supersedes Requirement Document v1.0, PRD v2.0, and the Avatar Addendum. When implementing a feature, name the requirement ID it satisfies in the commit message.
 
 ---
 
@@ -51,8 +51,11 @@ Schema changes ONLY via files in `supabase/migrations/` (`YYYYMMDDHHMMSS_name.sq
 7. `20260927000007_talent_workload.sql` — profile edit rights (owner: name/location; direct manager: squad/grade; admin: all), `app_settings` thresholds, `utilization_squad_monthly` view, `staffing_candidates(skill, min_level, month)` RPC
 8. `20260927000008_feasibility_budget.sql` — `feasibility_resource_check(case_id)` RPC, GO-only case links on budget entries (trigger), `budget_monthly` view (burn rate)
 9. `20260927000009_copilot_limits.sql` — copilot daily quotas in `app_settings` (50 chat questions, 5 briefing generations per user per day), `copilot_briefings.generation_count`
+10. `20260928000001_hr_role.sql` — adds `hr` to `user_role` (own migration: enum values must commit before use)
+11. `20260928000002_talent_profile.sql` — Talent Profile (Addendum C): profile work attributes, `skills.kind` (unique name+kind), `level_scales`, assessment metadata on `profile_skills`, `talent_positions/projects/certifications/evidence`, `performance_reviews/scores`, `development_plans/activities`, private `talent_ai_requests`, views `competency_gaps` + `talent_certification_status`, RPC `talent_context()`, helpers `is_in_reporting_line/can_view_talent/can_develop_talent`, bucket `talent-files`
+12. `20260928000003_fix_profile_guard.sql` — fixes migration 11's profile guard (array append)
 
-Status: **applied** to project `tmzwlurjwantvuptpvpe` (https://tmzwlurjwantvuptpvpe.supabase.co). After any schema change run `supabase/tests/rls_matrix.sql` (transactional, rolls back) — it must end with `RLS matrix: ALL PASS`. Run it with `npx supabase db query --linked -f supabase/tests/rls_matrix.sql`.
+Status: **applied** (1–12) to project `tmzwlurjwantvuptpvpe` (https://tmzwlurjwantvuptpvpe.supabase.co). After any schema change run `supabase/tests/rls_matrix.sql` (transactional, rolls back) — it must end with `RLS matrix: ALL PASS`; also `supabase/tests/talent_profile.sql` (`Talent Profile RLS: ALL PASS`). Run it with `npx supabase db query --linked -f supabase/tests/rls_matrix.sql`.
 
 Helpers: `is_member()` = active and not guest — the gate for reading module data. Inactive users resolve to no role (zero access). `feasibility_required_skills` (case × skill × min_level × headcount) feeds the resource check (PF-03).
 
@@ -200,3 +203,8 @@ docs/             # requirement doc, addendum, guides, runbooks
 - 2026-09-27: Copilot daily quota 50 questions/user/day and 5 briefing generations/user/day (admin-editable in Pengaturan). Briefing token counts accumulate across refreshes so `supabase/reports/copilot_cost_monthly.sql` stays accurate.
 - 2026-09-27: `tania-assistant` runs with `verify_jwt = false` (gateway verification doesn't support the project's asymmetric JWT signing keys); the function verifies every caller with `auth.getUser()` itself. CORS comes from the `ALLOWED_ORIGINS` secret. Model errors return a friendly message plus a non-secret `code` for diagnosis.
 - 2026-09-27: `supabase/` is excluded from the app tsconfig (Deno code); type-check the function with `deno check` (nodeModulesDir auto).
+- 2026-09-28: PRD v3.2 (Addendum C) adopts the Talent Profile (`docs/prd-talent.md`). It extends existing structures (profiles, skills, profile_skills, audit_log) instead of duplicating them; one route `/talent/profil?id=` with 11 tabs; "Profil Saya" menu.
+- 2026-09-28: New role `hr` (HR / Talent Management): work attributes, career history, performance entry, certification verification; no budget or user admin. Talent Profile access = self, reporting line (direct + indirect), chapter_lead, hr, executive (read), admin.
+- 2026-09-28: Assessment rules: owners self-assess (`source = self`); targets only by manager line/lead/HR/admin; gap = current − target on 0–100 (score, else level × 20), computed by the `competency_gaps` view. Certifications entered by talent stay `pending` until HR verifies; editing a verified certificate resets it to pending. Evidence is verified by the line/lead/HR, never by the talent.
+- 2026-09-28: Performance history is HR-entered (`official`/`manual`), read-only for everyone else, audited; the AI has no write path. Talent AI (`mode: talent`) answers only from `talent_context()` with the caller's JWT and returns FACT / INFERENCE / RECOMMENDATION / UNKNOWN JSON (structured outputs). AI Insight is cached per viewer/profile/day; ask + journey count toward the daily copilot quota. A recommended journey becomes a development plan only when a user saves it.
+- 2026-09-28: Unit tests use Vitest (`npm test`, `src/**/*.test.ts`); pure logic lives in `src/lib/talent-profile/calc.ts` and `permissions.ts`. Demo talent data only via `scripts/seed-talent-demo.mjs` (local, service role, `is_demo`, `--clean`).

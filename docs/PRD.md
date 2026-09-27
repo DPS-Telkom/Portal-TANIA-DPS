@@ -668,3 +668,21 @@ Requirement tambahan:
 | XM-07 | Guest onboarding | Signup → role guest → `/menunggu-akses`; guest tidak dapat membaca data modul (diuji RLS); Admin mengubah role dari `/admin`; opsional: batasi pendaftaran ke domain email @telkom.co.id (Approval Gate AG-07) | Must |
 
 Approval Gate baru — **AG-07**: kebijakan pendaftaran (terbuka vs terbatas domain @telkom.co.id) · Owner: Chapter Lead + Management · Blocking: TIDAK untuk build, YA sebelum diumumkan publik.
+
+## Addendum C — Talent Profile (berlaku sebagai PRD v3.2, 28 Sep 2026)
+
+Menambahkan scope **TANIA Talent Profile** sesuai `docs/prd-talent.md` (TP-001..TP-016). Bila bertentangan dengan badan PRD atau Addendum B, **Addendum C berlaku untuk scope talent**; aturan arsitektur (static export, RLS sebagai satu-satunya batas otorisasi, satu Edge Function LLM) tetap berlaku penuh.
+
+| # | Area | Sebelumnya | v3.2 (berlaku) | Dampak |
+|---|------|-----------|----------------|--------|
+| C-1 | Scope data talent | §3.2: TANIA bukan system-of-record HR; data talent terbatas atribut kerja | TANIA menyimpan **profil talent 360°**: riwayat karier, capability/competency/expertise (current + target), sertifikasi, project experience, evidence, **performance history** (input HR, read-only bagi talent), development plan. Tetap bukan payroll/kompensasi. | Migrasi 10–12; tab Talent Profile |
+| C-2 | Role | 7 role | Role baru **`hr` (HR / Talent Management)**: kelola atribut kerja, riwayat karier, performance, verifikasi sertifikasi; tanpa akses budget/admin user | Enum `user_role` + RLS |
+| C-3 | Hierarki manager | Hanya bawahan langsung | Akses Talent Profile mengikuti **reporting line (langsung & tidak langsung)** | Helper `is_in_reporting_line()` |
+| C-4 | AI | Copilot chat & briefing | **Talent AI** (Ask TANIA, AI Insight, Recommended Journey) dengan respons terstruktur **FACT / INFERENCE / RECOMMENDATION / UNKNOWN**; konteks hanya dari `talent_context()` (RLS pemanggil); AI tidak pernah menulis data HR/performance | Mode `talent` di `tania-assistant` |
+| C-5 | Performance | Tidak ada | Input manual HR (sumber `official`/`manual`), read-only bagi talent/manager, teraudit; siap diganti import resmi (AG-08) | `performance_reviews/scores` |
+
+Belum termasuk (fase berikutnya): Manager Talent 360 dashboard (TP-015), talent search bahasa natural (TP-014), integrasi HRIS/LMS/performance resmi, analytics event (belum ada infrastruktur analytics).
+
+Approval Gate baru:
+- **AG-08** — Sumber resmi performance & integrasi HRIS · Owner: HR + Corporate IT · Blocking: YA sebelum data performance produksi dipakai untuk keputusan.
+- **AG-09** — Kebijakan privasi Talent Profile (siapa melihat performance & penilaian; retensi) selaras UU PDP · Owner: HR + Legal · Blocking: YA sebelum go-live Talent Profile.
