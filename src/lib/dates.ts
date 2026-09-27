@@ -45,3 +45,30 @@ export function formatWeek(monday: string): string {
 export function formatHours(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
 }
+
+/** First day of the month containing `d`, as YYYY-MM-01. */
+export function monthOf(d: Date = new Date()): string {
+  return toISODate(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+export function addMonths(isoMonth: string, n: number): string {
+  const d = fromISODate(isoMonth);
+  return toISODate(new Date(d.getFullYear(), d.getMonth() + n, 1));
+}
+
+export function monthRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let m = from; m <= to && out.length < 36; m = addMonths(m, 1)) out.push(m);
+  return out;
+}
+
+const monthFmt = new Intl.DateTimeFormat("id-ID", { month: "short", year: "numeric" });
+const monthLongFmt = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" });
+
+export function formatMonth(isoMonth: string, long = false): string {
+  return (long ? monthLongFmt : monthFmt).format(fromISODate(isoMonth));
+}
+
+/** `<input type="month">` value (YYYY-MM) ↔ YYYY-MM-01. */
+export const monthInputToISO = (v: string) => (v ? `${v}-01` : "");
+export const isoToMonthInput = (iso: string) => iso.slice(0, 7);

@@ -2,6 +2,7 @@
 
 import { ActivitiesPanel } from "@/components/admin/activities-panel";
 import { ProjectsPanel } from "@/components/admin/projects-panel";
+import { SettingsPanel } from "@/components/admin/settings-panel";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,6 +31,7 @@ export default function AdminPage() {
           <TabsTrigger value="user">User</TabsTrigger>
           <TabsTrigger value="project">Project</TabsTrigger>
           <TabsTrigger value="aktivitas">Aktivitas</TabsTrigger>
+          <TabsTrigger value="pengaturan">Pengaturan</TabsTrigger>
         </TabsList>
         <TabsContent value="user" className="pt-4">
           <UsersPanel />
@@ -39,6 +41,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="aktivitas" className="pt-4">
           <ActivitiesPanel />
+        </TabsContent>
+        <TabsContent value="pengaturan" className="pt-4">
+          <SettingsPanel />
         </TabsContent>
       </Tabs>
     </div>

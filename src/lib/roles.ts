@@ -34,9 +34,9 @@ const MEMBERS: UserRole[] = ["talent", "pm", "manager", "chapter_lead", "executi
 // Menu visibility is UX only; RLS is the enforcement (CLAUDE.md §2.2).
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", roles: MEMBERS, available: true },
-  { href: "/talent", label: "Talent", roles: MEMBERS, available: false },
+  { href: "/talent", label: "Talent", roles: MEMBERS, available: true },
   { href: "/timesheet", label: "Timesheet", roles: MEMBERS, available: true },
-  { href: "/workload", label: "Workload", roles: MEMBERS, available: false },
+  { href: "/workload", label: "Workload", roles: MEMBERS, available: true },
   { href: "/feasibility", label: "Feasibility", roles: MEMBERS, available: false },
   {
     href: "/budget",
