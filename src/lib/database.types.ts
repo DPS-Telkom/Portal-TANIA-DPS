@@ -801,6 +801,33 @@ export type Database = {
       }
     }
     Views: {
+      budget_monthly: {
+        Row: {
+          budget_line_id: string | null
+          category: string | null
+          committed: number | null
+          fiscal_year: number | null
+          period_month: string | null
+          program: string | null
+          realized: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_entries_budget_line_id_fkey"
+            columns: ["budget_line_id"]
+            isOneToOne: false
+            referencedRelation: "budget_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_entries_budget_line_id_fkey"
+            columns: ["budget_line_id"]
+            isOneToOne: false
+            referencedRelation: "budget_summary"
+            referencedColumns: ["budget_line_id"]
+          },
+        ]
+      }
       budget_summary: {
         Row: {
           budget_line_id: string | null
@@ -847,6 +874,20 @@ export type Database = {
       }
     }
     Functions: {
+      feasibility_resource_check: {
+        Args: { p_case_id: string }
+        Returns: {
+          headcount: number
+          min_candidates: number
+          min_free_fte: number
+          min_level: number
+          months: number
+          period_start: string
+          skill_id: string
+          skill_name: string
+          status: string
+        }[]
+      }
       get_my_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]

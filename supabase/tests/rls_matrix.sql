@@ -289,9 +289,17 @@ do $$ begin
 
   if not exists (select 1 from public.budget_summary) then raise exception 'FAIL: pm cannot read budget'; end if;
 
-  insert into public.budget_entries (budget_line_id, entry_type, amount, created_by, feasibility_case_id)
+  -- dd01 is not decided yet: linking it must be refused (migration 8)
+  begin
+    insert into public.budget_entries (budget_line_id, entry_type, amount, feasibility_case_id)
+    values ('00000000-0000-0000-0000-00000000cc01', 'commitment', 1, '00000000-0000-0000-0000-00000000dd01');
+    raise exception 'FAIL: budget entry linked to an undecided case';
+  exception when check_violation then null;
+  end;
+
+  insert into public.budget_entries (budget_line_id, entry_type, amount, created_by)
   values ('00000000-0000-0000-0000-00000000cc01', 'commitment', 900000,
-          '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000dd01');
+          '00000000-0000-0000-0000-0000000000a1');
   if exists (select 1 from public.budget_entries where created_by <> auth.uid()) then
     raise exception 'FAIL: created_by was forgeable';
   end if;
@@ -652,6 +660,69 @@ do $$ begin
   end if;
   if (select updated_by from public.app_settings where key = 'utilization_over_pct') is distinct from auth.uid() then
     raise exception 'FAIL: app_settings.updated_by not stamped';
+  end if;
+end $$;
+reset role;
+
+-- ===========================================================================
+-- Migration 8: resource check, GO-only case links, budget_monthly
+-- ===========================================================================
+select set_config('request.jwt.claims', '', true);  -- maintenance context
+update public.feasibility_cases
+   set start_month = date_trunc('month', current_date)::date, est_duration_months = 2
+ where id = '00000000-0000-0000-0000-00000000dd01';
+insert into public.feasibility_required_skills (case_id, skill_id, min_level, headcount)
+values ('00000000-0000-0000-0000-00000000dd01', (select id from public.skills where name = 'Data Analytics'), 3, 1);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+do $$
+declare
+  r record;
+begin
+  select * into r from public.feasibility_resource_check('00000000-0000-0000-0000-00000000dd01');
+  if r.skill_name <> 'Data Analytics' or r.months <> 2 then
+    raise exception 'FAIL: resource check shape (skill %, months %)', r.skill_name, r.months;
+  end if;
+  -- t1 is the only Data Analytics ≥3 and is 70% allocated this month → 30% free
+  if r.min_candidates <> 0 or r.status <> 'kurang' then
+    raise exception 'FAIL: resource check expected kurang/0, got %/%', r.status, r.min_candidates;
+  end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d1","role":"authenticated"}', true);
+do $$ begin
+  -- dd01 is GO (decided by chapter_lead above): linking is allowed now
+  insert into public.budget_entries (budget_line_id, entry_type, amount, feasibility_case_id, entry_date)
+  values ('00000000-0000-0000-0000-00000000cc01', 'realization', 50000, '00000000-0000-0000-0000-00000000dd01', current_date);
+  begin
+    insert into public.budget_entries (budget_line_id, entry_type, amount, feasibility_case_id)
+    values ('00000000-0000-0000-0000-00000000cc01', 'commitment', 1, '00000000-0000-0000-0000-00000000dd02');
+    raise exception 'FAIL: budget entry linked to a non-GO case';
+  exception when check_violation then null;
+  end;
+  if (select realized from public.budget_monthly
+      where budget_line_id = '00000000-0000-0000-0000-00000000cc01'
+        and period_month = date_trunc('month', current_date)::date) < 50000 then
+    raise exception 'FAIL: budget_monthly missing realization';
+  end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$ begin
+  if exists (select 1 from public.budget_monthly) then raise exception 'FAIL: talent reads budget_monthly'; end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000092","role":"authenticated"}', true);
+do $$ begin
+  if exists (select 1 from public.feasibility_resource_check('00000000-0000-0000-0000-00000000dd01')) then
+    raise exception 'FAIL: guest ran a resource check';
   end if;
 end $$;
 reset role;

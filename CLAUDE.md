@@ -49,6 +49,7 @@ Schema changes ONLY via files in `supabase/migrations/` (`YYYYMMDDHHMMSS_name.sq
 5. `20260927000005_timesheet_compliance.sql` — `utilization_monthly` v2 (approved leave hours reduce capacity; adds `leave_hours`, `base_capacity_hours`), `timesheet_compliance(week_start)` RPC (security invoker)
 6. `20260927000006_revoke_trigger_function_execute.sql` — trigger functions not callable via `/rpc`
 7. `20260927000007_talent_workload.sql` — profile edit rights (owner: name/location; direct manager: squad/grade; admin: all), `app_settings` thresholds, `utilization_squad_monthly` view, `staffing_candidates(skill, min_level, month)` RPC
+8. `20260927000008_feasibility_budget.sql` — `feasibility_resource_check(case_id)` RPC, GO-only case links on budget entries (trigger), `budget_monthly` view (burn rate)
 
 Status: **applied** to project `tmzwlurjwantvuptpvpe` (https://tmzwlurjwantvuptpvpe.supabase.co). After any schema change run `supabase/tests/rls_matrix.sql` (transactional, rolls back) — it must end with `RLS matrix: ALL PASS`. Run it with `npx supabase db query --linked -f supabase/tests/rls_matrix.sql`.
 
@@ -190,3 +191,7 @@ docs/             # requirement doc, addendum, guides, runbooks
 - 2026-09-27: Thresholds live in `app_settings` (admin-editable on /admin → Pengaturan): overload >100%, underload <60%, budget 80%/100%. Underload is flagged only for completed months; overload on planned (current/future) and actual (past/current).
 - 2026-09-27: Staffing candidates = active talent, pm, manager; ranked by free capacity (100 − allocated %) then skill level. `staffing_candidates()` is the single source for TM-04 and the future PF-03 resource check.
 - 2026-09-27: Talent profile lives at `/talent/profil?id=` (query param, because static export cannot pre-render per-user routes).
+- 2026-09-27: Budget badge = max(committed %, realized %) of plan vs `app_settings` thresholds (80/100). A line with plan 0 and any spend is critical.
+- 2026-09-27: Budget entries may link only to feasibility cases decided GO (DB trigger `budget_entry_case_guard`); unlinked entries are allowed.
+- 2026-09-27: Resource check (PF-03): per required skill, people at ≥ min level with ≥50% free capacity in every month of the case period (start_month + duration, max 12 months); status cukup/parsial/kurang. Feasibility scores are labelled "indikatif" until AG-01 is signed.
+- 2026-09-27: Feasibility attachments live in bucket `attachments` under `feasibility/<case_id>/`; case pages are `/feasibility/case?id=` (`id=baru` for intake).
