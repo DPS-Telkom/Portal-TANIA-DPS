@@ -37,12 +37,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/talent", label: "Talent", roles: MEMBERS, available: true },
   { href: "/timesheet", label: "Timesheet", roles: MEMBERS, available: true },
   { href: "/workload", label: "Workload", roles: MEMBERS, available: true },
-  { href: "/feasibility", label: "Feasibility", roles: MEMBERS, available: false },
+  { href: "/feasibility", label: "Feasibility", roles: MEMBERS, available: true },
   {
     href: "/budget",
     label: "Budget",
     roles: ["pm", "manager", "chapter_lead", "executive", "admin"],
-    available: false,
+    available: true,
   },
   { href: "/admin", label: "Admin", roles: ["admin"], available: true },
 ];
