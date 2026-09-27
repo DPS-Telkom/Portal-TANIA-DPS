@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Wordmark } from "@/components/brand/wordmark";
+import { CopilotBubble } from "@/components/copilot/copilot-bubble";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -53,6 +54,7 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
 
 export function AppShell({ profile, children }: { profile: Profile; children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
@@ -103,6 +105,7 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
 
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
+      {!pathname.startsWith("/dashboard") && <CopilotBubble />}
     </div>
   );
 }
