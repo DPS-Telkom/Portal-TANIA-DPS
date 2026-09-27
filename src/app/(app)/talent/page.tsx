@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import Link from "next/link";
+import { Upload } from "lucide-react";
+
 import { TalentDirectory } from "@/components/talent/directory";
+import { TalentExportButton } from "@/components/talent/export-button";
+import { buttonVariants } from "@/components/ui/button";
 import { StaffingSearch } from "@/components/talent/staffing";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
@@ -10,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import type { Skill } from "@/lib/talent";
 import type { UserRole } from "@/lib/types";
 
+const IMPORTERS: UserRole[] = ["hr", "admin", "chapter_lead"];
 const STAFFING_ROLES: UserRole[] = ["pm", "manager", "chapter_lead", "hr", "executive", "admin"];
 
 export default function TalentPage() {
@@ -33,11 +39,19 @@ export default function TalentPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Talent</h1>
-        <p className="text-muted-foreground">
-          Profil, kompetensi, dan ketersediaan talent Chapter DPS.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Talent</h1>
+          <p className="text-muted-foreground">Profil, kompetensi, dan ketersediaan talent Chapter DPS.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <TalentExportButton />
+          {IMPORTERS.includes(profile.role) && (
+            <Link href="/talent/import" className={buttonVariants({ className: "gap-1" })}>
+              <Upload className="size-4" /> Import
+            </Link>
+          )}
+        </div>
       </div>
       <Tabs defaultValue="direktori">
         <TabsList>

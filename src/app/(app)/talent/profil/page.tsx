@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FullPageStatus } from "@/components/full-page-status";
+import { TalentExportButton } from "@/components/talent/export-button";
 import { AskTania } from "@/components/talent-profile/ask-tania";
 import { CareerTimeline } from "@/components/talent-profile/career-timeline";
 import { CertificationList } from "@/components/talent-profile/certification-list";
@@ -236,9 +237,12 @@ function ProfileContent() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {back}
-        <Button onClick={() => setAskOpen(true)} className="gap-1">
-          <Sparkles className="size-4" /> Ask TANIA
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <TalentExportButton profileIds={[ctx.talent.id]} label="Export profil" />
+          <Button onClick={() => setAskOpen(true)} className="gap-1">
+            <Sparkles className="size-4" /> Ask TANIA
+          </Button>
+        </div>
       </div>
 
       <TalentHeader {...common} />
