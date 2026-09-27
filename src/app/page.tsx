@@ -1,6 +1,7 @@
 import { BarChart3, Bot, Clock, Lightbulb, ShieldCheck, Target, Users, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 
+import { Logo, LogoStrip } from "@/components/brand/logos";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Mascot } from "@/components/home/mascot";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,7 +29,11 @@ export default function Home() {
     <div className="min-h-screen bg-[linear-gradient(180deg,var(--tania-sky),#ffffff_420px)]">
       <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Wordmark tagline />
+          <div className="flex items-center gap-4">
+            <Logo name="telkom" className="h-10 max-sm:hidden" />
+            <span className="h-8 w-px bg-border max-sm:hidden" aria-hidden />
+            <Wordmark tagline />
+          </div>
           <Link href="/login" className={cn(buttonVariants({ size: "lg" }), "rounded-full px-6 font-semibold")}>
             LOGIN
           </Link>
@@ -106,6 +111,7 @@ export default function Home() {
             ))}
           </ul>
         </section>
+        <LogoStrip className="rounded-3xl border bg-background px-4 py-6" />
       </main>
 
       <footer className="border-t bg-background">

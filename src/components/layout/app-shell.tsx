@@ -19,6 +19,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Logo } from "@/components/brand/logos";
 import { Wordmark } from "@/components/brand/wordmark";
 import { CopilotBubble } from "@/components/copilot/copilot-bubble";
 import { Button } from "@/components/ui/button";
@@ -136,17 +137,21 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,var(--tania-sky),#ffffff_320px)] md:grid md:grid-cols-[248px_1fr]">
       <aside className="hidden flex-col border-r bg-background/80 px-4 py-5 backdrop-blur md:flex">
-        <div className="mb-6 px-2">
+        <div className="mb-6 space-y-4 px-2">
+          <Logo name="telkom" className="h-11" />
           <Wordmark href="/beranda" tagline />
         </div>
         <NavLinks profile={profile} />
-        <p className="mt-auto px-2 pt-8 text-sm leading-snug font-semibold text-tania-navy/70 italic">
-          Stronger People,
-          <br />
-          Smarter Ways,
-          <br />
-          <span className="text-telkom-red">Bigger Impact</span>
-        </p>
+        <div className="mt-auto space-y-3 px-2 pt-8">
+          <p className="text-sm leading-snug font-semibold text-tania-navy/70 italic">
+            Stronger People,
+            <br />
+            Smarter Ways,
+            <br />
+            <span className="text-telkom-red">Bigger Impact</span>
+          </p>
+          <Logo name="scale" className="h-9" />
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-col">

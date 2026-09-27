@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { LogoStrip } from "@/components/brand/logos";
 import { AskBox } from "@/components/home/ask-box";
 import { Mascot } from "@/components/home/mascot";
 import { useAuth } from "@/lib/auth";
@@ -149,15 +150,7 @@ export default function BerandaPage() {
         </ul>
       </section>
 
-      <p className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span>Digital Product &amp; Solution</span>
-        <span aria-hidden>·</span>
-        <span>Stronger People</span>
-        <span aria-hidden>·</span>
-        <span>Smarter Ways</span>
-        <span aria-hidden>·</span>
-        <span>Bigger Impact</span>
-      </p>
+      <LogoStrip className="py-4" />
     </div>
   );
 }
