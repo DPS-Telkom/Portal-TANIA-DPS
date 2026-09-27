@@ -417,6 +417,117 @@ do $$ begin
 end $$;
 reset role;
 
+-- ===========================================================================
+-- Migration 5: leave reduces capacity; timesheet_compliance scope
+-- ===========================================================================
+select set_config('request.jwt.claims', '', true);  -- maintenance context
+insert into public.timesheets (id, profile_id, project_id, activity_id, work_date, hours, status) values
+  ('00000000-0000-0000-0000-00000000bb03', '00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000aa01',
+   (select id from public.activities where code = 'LEA'), current_date - 3, 8, 'submitted');
+
+-- approval needs a real reviewer: t1's manager
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+update public.timesheets set status = 'approved' where id = '00000000-0000-0000-0000-00000000bb03';
+reset role;
+
+do $$ begin
+  if (select status from public.timesheets where id = '00000000-0000-0000-0000-00000000bb03') <> 'approved' then
+    raise exception 'FAIL: manager could not approve leave entry';
+  end if;
+end $$;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$
+declare
+  u record;
+begin
+  select * into u from public.utilization_monthly
+  where profile_id = auth.uid() and period_month = date_trunc('month', current_date - 3)::date;
+  if u.leave_hours <> 8 then raise exception 'FAIL: leave_hours should be 8, got %', u.leave_hours; end if;
+  if u.approved_hours <> 8 then raise exception 'FAIL: leave counted as work (approved_hours %)', u.approved_hours; end if;
+  if u.capacity_hours <> u.base_capacity_hours - 8 then raise exception 'FAIL: leave did not reduce capacity'; end if;
+
+  if exists (select 1 from public.timesheet_compliance(date_trunc('week', current_date)::date) where profile_id <> auth.uid()) then
+    raise exception 'FAIL: talent sees others in compliance';
+  end if;
+  if not exists (select 1 from public.timesheet_compliance(date_trunc('week', current_date)::date) where profile_id = auth.uid()) then
+    raise exception 'FAIL: talent missing from own compliance';
+  end if;
+  if exists (select 1 from public.timesheet_compliance(current_date - (extract(isodow from current_date)::int) + 2)) then
+    raise exception 'FAIL: compliance accepted a non-Monday week_start';
+  end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+do $$ begin
+  if not exists (select 1 from public.timesheet_compliance(date_trunc('week', current_date)::date)
+                 where profile_id = '00000000-0000-0000-0000-0000000000f1') then
+    raise exception 'FAIL: manager missing direct report in compliance';
+  end if;
+  if exists (select 1 from public.timesheet_compliance(date_trunc('week', current_date)::date)
+             where profile_id = '00000000-0000-0000-0000-0000000000f2') then
+    raise exception 'FAIL: manager sees non-report in compliance';
+  end if;
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000092","role":"authenticated"}', true);
+do $$ begin
+  if exists (select 1 from public.timesheet_compliance(date_trunc('week', current_date)::date)) then
+    raise exception 'FAIL: guest reads compliance';
+  end if;
+end $$;
+reset role;
+
+-- ===========================================================================
+-- UI write paths (my-week.tsx): grid upsert, upsert into a locked row, weekly submit
+-- ===========================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$
+declare
+  n int;
+begin
+  -- grid save = upsert on the unique key; existing draft INT row gets new hours
+  insert into public.timesheets (profile_id, project_id, activity_id, work_date, hours, status)
+  values (auth.uid(), '00000000-0000-0000-0000-00000000aa01', (select id from public.activities where code = 'INT'),
+          current_date, 6, 'draft')
+  on conflict (profile_id, project_id, activity_id, work_date)
+  do update set hours = excluded.hours, status = excluded.status;
+  if (select hours from public.timesheets where profile_id = auth.uid() and work_date = current_date
+      and activity_id = (select id from public.activities where code = 'INT')) <> 6 then
+    raise exception 'FAIL: grid upsert did not update the draft row';
+  end if;
+
+  -- upsert over a submitted (locked) row must be refused
+  begin
+    insert into public.timesheets (profile_id, project_id, activity_id, work_date, hours, status)
+    values (auth.uid(), '00000000-0000-0000-0000-00000000aa01', (select id from public.activities where code = 'TRN'),
+            current_date, 1, 'draft')
+    on conflict (profile_id, project_id, activity_id, work_date)
+    do update set hours = excluded.hours, status = excluded.status;
+    raise exception 'FAIL: upsert changed a submitted row';
+  exception when insufficient_privilege then null;
+  end;
+
+  -- weekly submit, exactly as the UI does it
+  update public.timesheets set status = 'submitted'
+  where profile_id = auth.uid()
+    and work_date between date_trunc('week', current_date)::date and date_trunc('week', current_date)::date + 6
+    and status in ('draft', 'rejected');
+  get diagnostics n = row_count;
+  if n < 1 then raise exception 'FAIL: weekly submit updated no rows'; end if;
+  if exists (select 1 from public.timesheets where profile_id = auth.uid() and work_date = current_date and status = 'draft') then
+    raise exception 'FAIL: draft rows remain after weekly submit';
+  end if;
+end $$;
+reset role;
+
 select 'RLS matrix: ALL PASS' as result;
 
 rollback;

@@ -46,8 +46,10 @@ Schema changes ONLY via files in `supabase/migrations/` (`YYYYMMDDHHMMSS_name.sq
 2. `20260927000002_rls_policies.sql` — sign-up trigger (always `guest`), profile guard, timesheet workflow + feasibility decision triggers, audit triggers, RLS on every table, `attachments` bucket
 3. `20260927000003_seed_master_data.sql` — 5 activities, 12 starter skills
 4. `20260927000004_avatar_copilot.sql` — chat_conversations, chat_messages, copilot_briefings
+5. `20260927000005_timesheet_compliance.sql` — `utilization_monthly` v2 (approved leave hours reduce capacity; adds `leave_hours`, `base_capacity_hours`), `timesheet_compliance(week_start)` RPC (security invoker)
+6. `20260927000006_revoke_trigger_function_execute.sql` — trigger functions not callable via `/rpc`
 
-Status: **written, not yet applied.** Target project: `tmzwlurjwantvuptpvpe` (https://tmzwlurjwantvuptpvpe.supabase.co). After applying, run `supabase/tests/rls_matrix.sql` (transactional, rolls back) — it must end with `RLS matrix: ALL PASS`.
+Status: **applied** to project `tmzwlurjwantvuptpvpe` (https://tmzwlurjwantvuptpvpe.supabase.co). After any schema change run `supabase/tests/rls_matrix.sql` (transactional, rolls back) — it must end with `RLS matrix: ALL PASS`. Run it with `npx supabase db query --linked -f supabase/tests/rls_matrix.sql`.
 
 Helpers: `is_member()` = active and not guest — the gate for reading module data. Inactive users resolve to no role (zero access). `feasibility_required_skills` (case × skill × min_level × headcount) feeds the resource check (PF-03).
 
@@ -178,3 +180,8 @@ docs/             # requirement doc, addendum, guides, runbooks
 - 2026-09-27: Timesheet reviewers can never approve their own rows; reviewers cannot edit content while approving. `utilization_monthly` only returns rows whose timesheets the caller may read (avoids false 0% for out-of-scope people). PM writes allocations only for projects where `pm_id` = self.
 - 2026-09-27: Admin cannot change own role/is_active (lock-out guard). Guests may edit only `full_name`.
 - 2026-09-27: Project `tmzwlurjwantvuptpvpe` held an older TANIA schema (invite-only, incl. `cost_rates`, `talent_performance`). Decision: reset schema public via the one-time `supabase/reset/reset_public_schema.sql` (not a migration), then push the clean set. Existing auth accounts are kept and backfilled as `guest` by migration 2.
+- 2026-09-27: Approved hours on `leave`-category activities are not work: they reduce monthly capacity in `utilization_monthly` (capacity = 8h × Mon–Fri − approved leave).
+- 2026-09-27: Timesheet grid shows Mon–Fri with an optional Sat–Sun toggle; weeks are ISO (Mon–Sun). Submit and approve/reject happen per person-week.
+- 2026-09-27: Timesheet compliance covers active talent, pm, manager and chapter_lead (executive and admin are not expected to submit). Deadline: Friday.
+- 2026-09-27: Master data (projects, activities) is managed on `/admin` (admin UI only for now; RLS also lets manager/chapter_lead write). Projects are never deleted — status completed/cancelled instead.
+- 2026-09-27: Don't run `npm run build` while `npm run dev` is running — both write `.next/` and the dev server breaks.
