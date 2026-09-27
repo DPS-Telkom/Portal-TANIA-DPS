@@ -7,6 +7,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   chapter_lead: "Chapter Leader",
   manager: "Manager",
   pm: "Project Manager",
+  hr: "HR / Talent Management",
   talent: "Talent",
   guest: "Guest",
 };
@@ -17,6 +18,7 @@ export const ASSIGNABLE_ROLES: UserRole[] = [
   "pm",
   "manager",
   "chapter_lead",
+  "hr",
   "executive",
   "admin",
 ];
@@ -29,11 +31,12 @@ export interface NavItem {
   available: boolean;
 }
 
-const MEMBERS: UserRole[] = ["talent", "pm", "manager", "chapter_lead", "executive", "admin"];
+const MEMBERS: UserRole[] = ["talent", "pm", "manager", "chapter_lead", "hr", "executive", "admin"];
 
 // Menu visibility is UX only; RLS is the enforcement (CLAUDE.md §2.2).
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", roles: MEMBERS, available: true },
+  { href: "/talent/profil", label: "Profil Saya", roles: MEMBERS, available: true },
   { href: "/talent", label: "Talent", roles: MEMBERS, available: true },
   { href: "/timesheet", label: "Timesheet", roles: MEMBERS, available: true },
   { href: "/workload", label: "Workload", roles: MEMBERS, available: true },

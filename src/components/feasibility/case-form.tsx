@@ -12,7 +12,7 @@ import { isoToMonthInput, monthInputToISO } from "@/lib/dates";
 import { friendlyError } from "@/lib/errors";
 import { DIMENSIONS, previewTotal, type ScoreKey } from "@/lib/feasibility";
 import { supabase } from "@/lib/supabase";
-import { LEVEL_LABELS, type Skill } from "@/lib/talent";
+import { KIND_LABELS, LEVEL_LABELS, groupByKind, type Skill } from "@/lib/talent";
 
 export interface CaseRecord {
   id: string;
@@ -285,10 +285,14 @@ export function CaseForm({
               }
             >
               <option value="">+ Tambah kompetensi…</option>
-              {unusedSkills.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
+              {groupByKind(unusedSkills).map(([kind, list]) => (
+                <optgroup key={kind} label={KIND_LABELS[kind]}>
+                  {list.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           )}

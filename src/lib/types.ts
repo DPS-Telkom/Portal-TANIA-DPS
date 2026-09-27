@@ -2,6 +2,7 @@
 // live project. Keep in sync with supabase/migrations.
 
 export type UserRole =
+  | "hr"
   | "executive"
   | "chapter_lead"
   | "manager"

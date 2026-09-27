@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 import type { Skill } from "@/lib/talent";
 import type { UserRole } from "@/lib/types";
 
-const STAFFING_ROLES: UserRole[] = ["pm", "manager", "chapter_lead", "executive", "admin"];
+const STAFFING_ROLES: UserRole[] = ["pm", "manager", "chapter_lead", "hr", "executive", "admin"];
 
 export default function TalentPage() {
   const { profile } = useAuth();
@@ -20,7 +20,7 @@ export default function TalentPage() {
   useEffect(() => {
     (async () => {
       const [s, p] = await Promise.all([
-        supabase.from("skills").select("id, name, category").order("name"),
+        supabase.from("skills").select("id, name, category, kind").order("name"),
         supabase.from("profiles").select("squad").not("squad", "is", null).limit(1000),
       ]);
       setSkills((s.data ?? []) as Skill[]);

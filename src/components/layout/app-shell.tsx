@@ -17,11 +17,15 @@ import { cn } from "@/lib/utils";
 function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () => void }) {
   const pathname = usePathname();
   const items = NAV_ITEMS.filter((item) => item.roles.includes(profile.role));
+  // The most specific matching href wins (e.g. /talent/profil over /talent).
+  const activeHref = items
+    .filter((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <nav className="flex flex-col gap-1">
       {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = item.href === activeHref;
         if (!item.available) {
           return (
             <span

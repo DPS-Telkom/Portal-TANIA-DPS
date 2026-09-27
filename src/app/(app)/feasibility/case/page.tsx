@@ -44,7 +44,7 @@ function CaseContent() {
   useEffect(() => {
     supabase
       .from("skills")
-      .select("id, name, category")
+      .select("id, name, category, kind")
       .order("name")
       .then(({ data }) => setSkills((data ?? []) as Skill[]));
   }, []);

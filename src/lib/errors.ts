@@ -19,10 +19,17 @@ export function friendlyError(error: MaybeError | null | undefined): string {
   if (/failed to fetch|network/i.test(msg))
     return "Tidak dapat terhubung ke server. Periksa koneksi internet Anda.";
 
-  if (error.code === "42501" || /only admin can change/i.test(msg))
-    return "Anda tidak memiliki izin untuk perubahan ini. Hanya Admin yang dapat mengubah role, manager, atau status aktif.";
+  // Specific database guard messages first, then the generic permission case.
   if (/admin cannot change own role/i.test(msg))
     return "Admin tidak dapat mengubah role atau status aktif akunnya sendiri.";
+  if (/only admin can change/i.test(msg))
+    return "Hanya Admin yang dapat mengubah role, manager, atau status aktif.";
+  if (/target level is set by/i.test(msg)) return "Target level ditetapkan oleh manager atau HR.";
+  if (/only HR can verify/i.test(msg)) return "Hanya HR yang dapat memverifikasi sertifikasi.";
+  if (/evidence is verified by/i.test(msg)) return "Evidence diverifikasi oleh manager atau HR, bukan oleh talent sendiri.";
+  const field = msg.match(/not allowed to change profile field (\w+)/i)?.[1];
+  if (field) return `Anda tidak berhak mengubah kolom profil "${field}".`;
+  if (error.code === "42501") return "Anda tidak memiliki izin untuk perubahan ini.";
 
   return "Terjadi kesalahan. Coba lagi.";
 }

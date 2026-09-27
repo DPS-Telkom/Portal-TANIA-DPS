@@ -1,368 +1,303 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import { FullPageStatus } from "@/components/full-page-status";
-import { SkillMatrix, type ProfileSkill } from "@/components/talent/skill-matrix";
-import { Badge } from "@/components/ui/badge";
+import { AskTania } from "@/components/talent-profile/ask-tania";
+import { CareerTimeline } from "@/components/talent-profile/career-timeline";
+import { CertificationList } from "@/components/talent-profile/certification-list";
+import { EvidencePanel, ProjectExperience } from "@/components/talent-profile/experience-evidence";
+import { DevelopmentPlans, RecommendedJourney } from "@/components/talent-profile/journey-plan";
+import { CompetencyGapAnalysis, PerformanceHistory } from "@/components/talent-profile/performance-gap";
+import { ErrorState, Section, SkeletonBlock } from "@/components/talent-profile/section";
+import { SkillSection, type CatalogSkill } from "@/components/talent-profile/skill-section";
+import { TalentHeader } from "@/components/talent-profile/talent-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { addMonths, formatMonth, monthOf } from "@/lib/dates";
 import { friendlyError } from "@/lib/errors";
-import { ROLE_LABELS } from "@/lib/roles";
 import { useThresholds } from "@/lib/settings";
 import { supabase } from "@/lib/supabase";
-import type { Skill } from "@/lib/talent";
-import type { Profile } from "@/lib/types";
+import { levelLabel } from "@/lib/talent-profile/calc";
+import { talentPermissions } from "@/lib/talent-profile/permissions";
+import { isInReportingLine, listSkills, loadTalentContext } from "@/lib/talent-profile/service";
+import type { TalentContext } from "@/lib/talent-profile/types";
 import { cn } from "@/lib/utils";
 import { LOAD_CLASSES, formatPct, loadLevel } from "@/lib/workload";
 
-interface Allocation {
-  id: string;
-  period_month: string;
-  percent: number;
-  project: { code: string; name: string } | null;
-}
+// prd-talent §5–6: one route, sections as tabs (TANIA convention).
+const TABS = [
+  ["overview", "Overview"],
+  ["journey", "Journey"],
+  ["capability", "Capability"],
+  ["competency", "Competency"],
+  ["expertise", "Expertise"],
+  ["certification", "Certification"],
+  ["experience", "Experience"],
+  ["performance", "Performance"],
+  ["gap", "Gap Analysis"],
+  ["recommended", "Recommended Journey"],
+  ["evidence", "Evidence"],
+] as const;
 
 interface UtilRow {
   period_month: string;
-  approved_hours: number;
-  capacity_hours: number;
   utilization_pct: number | null;
   planned_pct: number;
-  leave_hours: number;
 }
 
-const PROFILE_COLUMNS = "id, full_name, email, role, squad, grade, location, manager_id, is_active, created_at";
-
-function IdentityCard({
-  person,
-  manager,
-  canEditSelf,
-  canEditOrg,
-  onSaved,
-}: {
-  person: Profile;
-  manager: string | null;
-  canEditSelf: boolean;
-  canEditOrg: boolean;
-  onSaved: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [fullName, setFullName] = useState(person.full_name);
-  const [location, setLocation] = useState(person.location ?? "");
-  const [squad, setSquad] = useState(person.squad ?? "");
-  const [grade, setGrade] = useState(person.grade ?? "");
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    const patch: { full_name?: string; location?: string | null; squad?: string | null; grade?: string | null } = {};
-    if (canEditSelf) {
-      if (fullName.trim().length < 2) return toast.error("Nama wajib diisi.");
-      patch.full_name = fullName.trim();
-      patch.location = location.trim() || null;
-    }
-    if (canEditOrg) {
-      patch.squad = squad.trim() || null;
-      patch.grade = grade.trim() || null;
-    }
-    setBusy(true);
-    const { error } = await supabase.from("profiles").update(patch).eq("id", person.id);
-    setBusy(false);
-    if (error) return toast.error(friendlyError(error));
-    toast.success("Profil disimpan.");
-    setEditing(false);
-    onSaved();
-  }
-
-  const fields: [string, string | null][] = [
-    ["Email", person.email],
-    ["Role", ROLE_LABELS[person.role]],
-    ["Squad", person.squad],
-    ["Grade", person.grade],
-    ["Lokasi", person.location],
-    ["Manager", manager],
-    ["Status", person.is_active ? "Aktif" : "Nonaktif"],
-  ];
-
+function UtilizationStrip({ profileId }: { profileId: string }) {
+  const t = useThresholds();
+  const [rows, setRows] = useState<UtilRow[] | null>(null);
+  useEffect(() => {
+    supabase
+      .from("utilization_monthly")
+      .select("period_month, utilization_pct, planned_pct")
+      .eq("profile_id", profileId)
+      .gte("period_month", addMonths(monthOf(), -5))
+      .order("period_month")
+      .then(({ data }) => setRows((data ?? []) as UtilRow[]));
+  }, [profileId]);
+  if (!rows) return <SkeletonBlock className="h-16" />;
+  if (!rows.length) return <p className="text-sm text-muted-foreground">Belum ada data utilisasi (atau di luar akses Anda).</p>;
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-xl">{person.full_name || person.email}</CardTitle>
-            <CardDescription>{person.email}</CardDescription>
-          </div>
-          <Badge variant="secondary">{ROLE_LABELS[person.role]}</Badge>
+    <div className="flex flex-wrap gap-2">
+      {rows.map((r) => (
+        <div key={r.period_month} className="rounded-md border px-2 py-1 text-center text-xs">
+          <div className="text-muted-foreground">{formatMonth(r.period_month)}</div>
+          <div className={cn("mt-0.5 rounded px-1", LOAD_CLASSES[loadLevel(r.utilization_pct, t)])}>{formatPct(r.utilization_pct)}</div>
+          <div className="text-muted-foreground">rencana {formatPct(r.planned_pct)}</div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!editing ? (
-          <>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr_auto_1fr]">
-              {fields.map(([k, v]) => (
-                <div key={k} className="contents">
-                  <dt className="text-muted-foreground">{k}</dt>
-                  <dd>{v || "—"}</dd>
-                </div>
-              ))}
-            </dl>
-            {(canEditSelf || canEditOrg) && (
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                Ubah profil
-              </Button>
-            )}
-          </>
+      ))}
+    </div>
+  );
+}
+
+function Overview({ ctx }: { ctx: TalentContext }) {
+  const top = [...ctx.skills]
+    .sort((a, b) => (b.score ?? b.level * 20) - (a.score ?? a.level * 20))
+    .slice(0, 5);
+  const biggestGaps = [...ctx.gaps].sort((a, b) => a.gap - b.gap).slice(0, 3);
+  const activePlan = ctx.development_plans.find((p) => p.status === "active");
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Section title="Kekuatan tercatat" description="Penilaian tertinggi (capability, competency, expertise).">
+        {top.length ? (
+          <ul className="divide-y text-sm">
+            {top.map((s) => (
+              <li key={s.skill_id} className="flex justify-between gap-2 py-1.5">
+                <span>
+                  {s.name} <span className="text-xs text-muted-foreground">{s.kind}</span>
+                </span>
+                <span className="font-medium">{levelLabel(s.level, ctx.level_scale)}</span>
+              </li>
+            ))}
+          </ul>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {canEditSelf && (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="pf-name">Nama lengkap</Label>
-                  <Input id="pf-name" value={fullName} maxLength={200} onChange={(e) => setFullName(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="pf-loc">Lokasi</Label>
-                  <Input id="pf-loc" value={location} maxLength={100} onChange={(e) => setLocation(e.target.value)} />
-                </div>
-              </>
-            )}
-            {canEditOrg && (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="pf-squad">Squad</Label>
-                  <Input id="pf-squad" value={squad} maxLength={100} onChange={(e) => setSquad(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="pf-grade">Grade</Label>
-                  <Input id="pf-grade" value={grade} maxLength={20} onChange={(e) => setGrade(e.target.value)} />
-                </div>
-              </>
-            )}
-            {!canEditOrg && (
-              <p className="text-xs text-muted-foreground sm:col-span-2">
-                Squad dan grade diatur oleh Admin atau manager langsung Anda.
-              </p>
-            )}
-            <div className="flex gap-2 sm:col-span-2">
-              <Button size="sm" onClick={save} disabled={busy}>
-                {busy ? "Menyimpan…" : "Simpan"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
-                Batal
-              </Button>
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground">Assessment belum dilakukan.</p>
         )}
-      </CardContent>
-    </Card>
+      </Section>
+      <Section title="Gap terbesar" description="Current − target.">
+        {biggestGaps.length ? (
+          <ul className="divide-y text-sm">
+            {biggestGaps.map((g) => (
+              <li key={g.skill_id} className="flex justify-between gap-2 py-1.5">
+                <span>{g.name}</span>
+                <span className={cn("font-semibold", g.gap < 0 ? "text-red-700" : "text-emerald-700")}>{g.gap}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">Target belum ditetapkan.</p>
+        )}
+      </Section>
+      <Section title="Development aktif">
+        {activePlan ? (
+          <p className="text-sm">
+            <strong>{activePlan.title}</strong> — {activePlan.activities.filter((a) => a.status === "completed").length}/
+            {activePlan.activities.length} aktivitas selesai.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Belum ada development plan aktif.</p>
+        )}
+      </Section>
+      <Section title="Utilisasi 6 bulan" description="Dari timesheet disetujui & alokasi (modul Workload).">
+        <UtilizationStrip profileId={ctx.talent.id} />
+      </Section>
+    </div>
   );
 }
 
 function ProfileContent() {
   const params = useSearchParams();
-  const { profile: me, refreshProfile } = useAuth();
+  const { profile: me } = useAuth();
   const id = params.get("id") ?? me?.id ?? "";
-  const thresholds = useThresholds();
-
-  const [person, setPerson] = useState<Profile | null>(null);
-  const [manager, setManager] = useState<string | null>(null);
-  const [skills, setSkills] = useState<ProfileSkill[]>([]);
-  const [allSkills, setAllSkills] = useState<Skill[]>([]);
-  const [allocations, setAllocations] = useState<Allocation[]>([]);
-  const [util, setUtil] = useState<UtilRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [ctx, setCtx] = useState<TalentContext | null>(null);
+  const [catalog, setCatalog] = useState<CatalogSkill[]>([]);
+  const [inLine, setInLine] = useState(false);
+  const [state, setState] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
+  const [error, setError] = useState<string | null>(null);
+  const [askOpen, setAskOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
-    const from = addMonths(monthOf(), -5);
-    const [p, s, all, a, u] = await Promise.all([
-      supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", id).maybeSingle(),
-      supabase
-        .from("profile_skills")
-        .select("skill_id, level, is_certified, certification_name, skill:skills(name, category)")
-        .eq("profile_id", id)
-        .order("level", { ascending: false }),
-      supabase.from("skills").select("id, name, category").order("name"),
-      supabase
-        .from("allocations")
-        .select("id, period_month, percent, project:projects(code, name)")
-        .eq("profile_id", id)
-        .order("period_month", { ascending: false })
-        .limit(120),
-      supabase
-        .from("utilization_monthly")
-        .select("period_month, approved_hours, capacity_hours, utilization_pct, planned_pct, leave_hours")
-        .eq("profile_id", id)
-        .gte("period_month", from)
-        .order("period_month"),
-    ]);
-    setLoading(false);
-    if (p.error) return toast.error(friendlyError(p.error));
-    if (!p.data) return setNotFound(true);
-    const next = p.data as Profile;
-    setPerson(next);
-    setSkills((s.data ?? []) as unknown as ProfileSkill[]);
-    setAllSkills((all.data ?? []) as Skill[]);
-    setAllocations((a.data ?? []) as unknown as Allocation[]);
-    setUtil((u.data ?? []) as UtilRow[]);
-    if (next.manager_id) {
-      const m = await supabase.from("profiles").select("full_name, email").eq("id", next.manager_id).maybeSingle();
-      setManager(m.data ? m.data.full_name || m.data.email : null);
-    } else {
-      setManager(null);
+    try {
+      const [c, line] = await Promise.all([loadTalentContext(id), isInReportingLine(id)]);
+      setInLine(line);
+      if (!c) {
+        setState("forbidden");
+        return;
+      }
+      setCtx(c);
+      setState("ready");
+    } catch (e) {
+      setError(friendlyError(e as { message?: string; code?: string }));
+      setState("error");
     }
   }, [id]);
 
   useEffect(() => {
+    setState("loading");
     load();
   }, [load]);
 
-  const byMonth = useMemo(() => {
-    const map = new Map<string, Allocation[]>();
-    for (const a of allocations) map.set(a.period_month, [...(map.get(a.period_month) ?? []), a]);
-    return [...map.entries()];
-  }, [allocations]);
+  useEffect(() => {
+    listSkills()
+      .then((s) => setCatalog(s as CatalogSkill[]))
+      .catch(() => setCatalog([]));
+  }, []);
 
-  if (loading && !person) return <FullPageStatus />;
-  if (notFound || !person || !me) {
+  const perms = useMemo(
+    () =>
+      me && ctx
+        ? talentPermissions({
+            viewerId: me.id,
+            viewerRole: me.role,
+            profileId: ctx.talent.id,
+            directManagerId: ctx.talent.manager?.id ?? null,
+            inReportingLine: inLine,
+          })
+        : null,
+    [me, ctx, inLine],
+  );
+
+  const back = (
+    <Link href="/talent" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <ArrowLeft className="size-4" /> Direktori talent
+    </Link>
+  );
+
+  if (state === "loading") {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Profil tidak ditemukan</CardTitle>
-          <CardDescription>Profil ini tidak ada atau di luar akses Anda.</CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="space-y-4" aria-busy="true">
+        {back}
+        <SkeletonBlock className="h-56" />
+        <SkeletonBlock className="h-10" />
+        <SkeletonBlock className="h-64" />
+      </div>
+    );
+  }
+  if (state === "forbidden") {
+    return (
+      <div className="space-y-4">
+        {back}
+        <Card>
+          <CardHeader>
+            <CardTitle>Talent Profile tidak dapat ditampilkan</CardTitle>
+            <CardDescription>
+              Profil ini tidak ada atau di luar akses Anda. Talent Profile hanya terbuka untuk pemiliknya, atasan dalam
+              reporting line, Chapter Leader, HR, Executive, dan Admin.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+  if (state === "error" || !ctx || !perms) {
+    return (
+      <div className="space-y-4">
+        {back}
+        <ErrorState>{error ?? "Talent Profile tidak dapat dimuat."}</ErrorState>
+        <Button variant="outline" size="sm" onClick={load}>
+          Coba lagi
+        </Button>
+      </div>
     );
   }
 
-  const isSelf = person.id === me.id;
-  const isManager = person.manager_id === me.id;
-  const isAdmin = me.role === "admin";
-  const canEditSelf = isSelf || isAdmin;
-  const canEditOrg = isManager || isAdmin;
-  const canEditSkills = isSelf || isManager || me.role === "chapter_lead" || isAdmin;
-  const currentMonth = monthOf();
+  const common = { ctx, perms, onChanged: load };
 
   return (
     <div className="space-y-6">
-      <Link href="/talent" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> Kembali ke direktori
-      </Link>
-
-      <IdentityCard
-        key={`${person.full_name}-${person.squad}-${person.grade}-${person.location}`}
-        person={person}
-        manager={manager}
-        canEditSelf={canEditSelf}
-        canEditOrg={canEditOrg}
-        onSaved={async () => {
-          await load();
-          if (isSelf) await refreshProfile();
-        }}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SkillMatrix profileId={person.id} items={skills} allSkills={allSkills} editable={canEditSkills} onChanged={load} />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Riwayat penugasan</CardTitle>
-            <CardDescription>
-              Alokasi rencana per project per bulan. Total di atas {thresholds.utilizationOver}% ditandai.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {byMonth.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Belum ada alokasi.</p>
-            ) : (
-              <ul className="divide-y text-sm">
-                {byMonth.map(([month, items]) => {
-                  const total = items.reduce((s, a) => s + Number(a.percent), 0);
-                  const level = loadLevel(total, thresholds);
-                  return (
-                    <li key={month} className="py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">
-                          {formatMonth(month, true)}
-                          {month === currentMonth && <span className="ml-2 text-xs text-telkom-red">bulan ini</span>}
-                          {month > currentMonth && <span className="ml-2 text-xs text-muted-foreground">rencana</span>}
-                        </span>
-                        <span className={cn("rounded-full px-2 py-0.5 text-xs", LOAD_CLASSES[level])}>{formatPct(total)}</span>
-                      </div>
-                      <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                        {items.map((a) => (
-                          <li key={a.id} className="flex justify-between gap-2">
-                            <span>{a.project ? `${a.project.code} · ${a.project.name}` : "—"}</span>
-                            <span>{Math.round(Number(a.percent))}%</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {back}
+        <Button onClick={() => setAskOpen(true)} className="gap-1">
+          <Sparkles className="size-4" /> Ask TANIA
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Utilisasi 6 bulan terakhir</CardTitle>
-          <CardDescription>
-            Aktual = jam timesheet disetujui ÷ kapasitas (8 jam × Sen–Jum, dikurangi cuti).
-            Kosong bila di luar akses Anda.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {util.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Belum ada data utilisasi.</p>
-          ) : (
-            <table className="w-full min-w-[480px] text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-1 font-medium">Bulan</th>
-                  <th className="py-1 text-right font-medium">Rencana</th>
-                  <th className="py-1 text-right font-medium">Aktual</th>
-                  <th className="py-1 text-right font-medium">Jam kerja</th>
-                  <th className="py-1 text-right font-medium">Cuti</th>
-                  <th className="py-1 text-right font-medium">Kapasitas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {util.map((u) => (
-                  <tr key={u.period_month} className="border-b last:border-0">
-                    <td className="py-1">{formatMonth(u.period_month)}</td>
-                    <td className="py-1 text-right">
-                      <span className={cn("rounded px-1.5", LOAD_CLASSES[loadLevel(Number(u.planned_pct), thresholds)])}>
-                        {formatPct(u.planned_pct)}
-                      </span>
-                    </td>
-                    <td className="py-1 text-right">
-                      <span className={cn("rounded px-1.5", LOAD_CLASSES[loadLevel(u.utilization_pct, thresholds)])}>
-                        {formatPct(u.utilization_pct)}
-                      </span>
-                    </td>
-                    <td className="py-1 text-right">{Number(u.approved_hours)}</td>
-                    <td className="py-1 text-right">{Number(u.leave_hours)}</td>
-                    <td className="py-1 text-right">{Number(u.capacity_hours)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+      <TalentHeader {...common} />
+
+      <Tabs defaultValue="overview">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <TabsList className="w-max">
+            {TABS.map(([v, l]) => (
+              <TabsTrigger key={v} value={v}>
+                {l}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        <TabsContent value="overview" className="pt-4">
+          <Overview ctx={ctx} />
+        </TabsContent>
+        <TabsContent value="journey" className="pt-4">
+          <CareerTimeline {...common} />
+        </TabsContent>
+        <TabsContent value="capability" className="pt-4">
+          <SkillSection kind="capability" catalog={catalog} {...common} />
+        </TabsContent>
+        <TabsContent value="competency" className="pt-4">
+          <SkillSection kind="competency" catalog={catalog} {...common} />
+        </TabsContent>
+        <TabsContent value="expertise" className="pt-4">
+          <SkillSection kind="expertise" catalog={catalog} {...common} />
+        </TabsContent>
+        <TabsContent value="certification" className="pt-4">
+          <CertificationList catalog={catalog} {...common} />
+        </TabsContent>
+        <TabsContent value="experience" className="pt-4">
+          <ProjectExperience catalog={catalog} {...common} />
+        </TabsContent>
+        <TabsContent value="performance" className="pt-4">
+          <PerformanceHistory {...common} />
+        </TabsContent>
+        <TabsContent value="gap" className="pt-4">
+          <CompetencyGapAnalysis ctx={ctx} />
+        </TabsContent>
+        <TabsContent value="recommended" className="space-y-6 pt-4">
+          <RecommendedJourney catalog={catalog} {...common} />
+          <DevelopmentPlans {...common} />
+        </TabsContent>
+        <TabsContent value="evidence" className="pt-4">
+          <EvidencePanel catalog={catalog} {...common} />
+        </TabsContent>
+      </Tabs>
+
+      <p className="text-xs text-muted-foreground">
+        Data per {new Date(ctx.generated_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })} · setiap
+        perubahan tercatat di audit log.
+        {ctx.talent.is_demo && " Profil ini adalah DATA DEMO, bukan data karyawan resmi."}
+      </p>
+
+      {askOpen && (
+        <AskTania profileId={ctx.talent.id} name={ctx.talent.full_name} isSelf={perms.isSelf} onClose={() => setAskOpen(false)} />
+      )}
     </div>
   );
 }

@@ -47,6 +47,8 @@ export function suggestionsFor(role: UserRole): string[] {
       return [...personal, "Apa saja kompetensi saya yang tercatat?"];
     case "pm":
       return ["Bagaimana posisi budget tahun ini?", "Siapa yang tersedia untuk Data Analytics bulan depan?", ...personal.slice(0, 1)];
+    case "hr":
+      return ["Apa competency gap terbesar saya?", "Siapa yang tersedia untuk Data Analytics bulan depan?", "Certification apa yang relevan untuk saya?"];
     case "manager":
       return ["Siapa di tim saya yang belum submit timesheet minggu lalu?", "Siapa yang overload bulan ini?", "Siapa yang tersedia untuk Data Analytics bulan depan?"];
     default:

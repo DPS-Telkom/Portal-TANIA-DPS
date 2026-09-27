@@ -18,7 +18,7 @@ import {
 import { friendlyError } from "@/lib/errors";
 import { ROLE_LABELS } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
-import { LEVEL_LABELS, type Skill } from "@/lib/talent";
+import { KIND_LABELS, LEVEL_LABELS, groupByKind, type Skill } from "@/lib/talent";
 import type { UserRole } from "@/lib/types";
 
 interface Row {
@@ -113,10 +113,14 @@ export function TalentDirectory({ skills, squads }: { skills: Skill[]; squads: s
         </select>
         <select className={selectClass} value={skillId} onChange={(e) => setSkillId(e.target.value)} aria-label="Filter skill">
           <option value="">Semua skill</option>
-          {skills.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
+          {groupByKind(skills).map(([kind, list]) => (
+            <optgroup key={kind} label={KIND_LABELS[kind]}>
+              {list.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         {skillId && (

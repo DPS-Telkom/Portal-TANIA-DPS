@@ -18,7 +18,7 @@ import { formatMonth, isoToMonthInput, monthInputToISO, monthOf } from "@/lib/da
 import { friendlyError } from "@/lib/errors";
 import { ROLE_LABELS } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
-import { LEVEL_LABELS, type Skill } from "@/lib/talent";
+import { KIND_LABELS, LEVEL_LABELS, groupByKind, type Skill } from "@/lib/talent";
 import type { UserRole } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -79,10 +79,14 @@ export function StaffingSearch({ skills }: { skills: Skill[] }) {
           <Label htmlFor="st-skill">Kompetensi</Label>
           <select id="st-skill" className={selectClass} value={skillId} onChange={(e) => setSkillId(e.target.value)}>
             <option value="">Semua (tanpa filter skill)</option>
-            {skills.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
+            {groupByKind(skills).map(([kind, list]) => (
+              <optgroup key={kind} label={KIND_LABELS[kind]}>
+                {list.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>
