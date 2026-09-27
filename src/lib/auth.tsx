@@ -45,7 +45,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     };
 
-    supabase.auth.getSession().then(({ data }) => apply(data.session));
+    supabase.auth.getSession().then(async ({ data }) => {
+      // A stored session may have been revoked server-side (e.g. signed out
+      // elsewhere). Validate it once; drop it locally if the server refuses.
+      if (data.session) {
+        const { error } = await supabase.auth.getUser();
+        if (error && (error.status === 401 || error.status === 403)) {
+          await supabase.auth.signOut({ scope: "local" });
+          if (active) apply(null);
+          return;
+        }
+      }
+      apply(data.session);
+    });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       // Token refreshes do not change who the user is; skip the extra query.
@@ -71,7 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // Only this browser: signing out here must not end sessions on other devices.
+    await supabase.auth.signOut({ scope: "local" });
     setSession(null);
     setProfile(null);
   }, []);

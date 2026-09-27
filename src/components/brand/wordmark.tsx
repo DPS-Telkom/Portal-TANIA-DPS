@@ -1,12 +1,27 @@
+import { Sparkle } from "lucide-react";
 import Link from "next/link";
 
-export function Wordmark({ href = "/", compact = false }: { href?: string; compact?: boolean }) {
+import { cn } from "@/lib/utils";
+
+// TANIA wordmark: navy letters with the Telkom-red spark.
+export function Wordmark({
+  href = "/",
+  compact = false,
+  tagline = false,
+  className,
+}: {
+  href?: string;
+  compact?: boolean;
+  tagline?: boolean;
+  className?: string;
+}) {
   return (
-    <Link href={href} className="flex items-center gap-2 font-bold tracking-tight">
-      <span className="grid size-8 place-items-center rounded-md bg-telkom-red text-sm text-white">
-        T
+    <Link href={href} className={cn("group inline-flex flex-col leading-none", className)} aria-label="TANIA — beranda">
+      <span className="relative inline-flex items-start text-2xl font-black tracking-tight text-tania-navy">
+        <span className={compact ? "max-[359px]:hidden" : undefined}>TANIA</span>
+        <Sparkle className="-mt-1 ml-0.5 size-3.5 fill-telkom-red text-telkom-red" aria-hidden />
       </span>
-      <span className={compact ? "text-lg max-[359px]:hidden" : "text-lg"}>TANIA</span>
+      {tagline && <span className="mt-1 text-[11px] font-medium text-muted-foreground">Chapter DPS · Telkom Indonesia</span>}
     </Link>
   );
 }

@@ -19,7 +19,7 @@ export default function WaitingForAccessPage() {
   useEffect(() => {
     if (loading) return;
     if (!session) router.replace("/login");
-    else if (isMember(profile?.role, profile?.is_active)) router.replace("/dashboard");
+    else if (isMember(profile?.role, profile?.is_active)) router.replace("/beranda");
   }, [loading, session, profile, router]);
 
   if (loading || !session || isMember(profile?.role, profile?.is_active)) {

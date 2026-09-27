@@ -24,7 +24,18 @@ interface Conversation {
 
 // AV-01/AV-05 — docked on the dashboard (with briefing), floating elsewhere.
 // Chat history is private per user (RLS: own rows only).
-export function CopilotPanel({ withBriefing, onClose, className }: { withBriefing: boolean; onClose?: () => void; className?: string }) {
+export function CopilotPanel({
+  withBriefing,
+  onClose,
+  className,
+  initialQuestion,
+}: {
+  withBriefing: boolean;
+  onClose?: () => void;
+  className?: string;
+  /** Sent once when it changes (nonce makes repeats of the same text fire). */
+  initialQuestion?: { text: string; nonce: number } | null;
+}) {
   const { profile } = useAuth();
   const [briefing, setBriefing] = useState<string | null>(null);
   const [briefingNote, setBriefingNote] = useState<string | null>(null);
@@ -35,6 +46,7 @@ export function CopilotPanel({ withBriefing, onClose, className }: { withBriefin
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const lastInitial = useRef<number | null>(null);
 
   const loadBriefing = useCallback(async (force: boolean) => {
     setBriefingLoading(true);
@@ -80,7 +92,9 @@ export function CopilotPanel({ withBriefing, onClose, className }: { withBriefin
         .limit(10);
       const list = (data ?? []) as Conversation[];
       setConversations(list);
-      if (list[0]) loadConversation(list[0].id);
+      // A question asked from outside (home, header) owns the panel; do not
+      // replace it with the previous conversation that loads afterwards.
+      if (list[0] && lastInitial.current === null) loadConversation(list[0].id);
     })();
   }, [loadConversation]);
 
@@ -119,6 +133,16 @@ export function CopilotPanel({ withBriefing, onClose, className }: { withBriefin
     setConversationId(null);
     setItems([]);
   }
+
+  useEffect(() => {
+    if (!initialQuestion || lastInitial.current === initialQuestion.nonce) return;
+    lastInitial.current = initialQuestion.nonce;
+    // Start a fresh conversation for a question asked from outside the panel.
+    setConversationId(null);
+    setItems([]);
+    void send(initialQuestion.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire only on a new nonce
+  }, [initialQuestion]);
 
   if (!profile) return null;
   const chips = suggestionsFor(profile.role);

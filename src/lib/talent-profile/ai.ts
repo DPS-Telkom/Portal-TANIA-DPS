@@ -1,6 +1,6 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 
-import { supabase } from "@/lib/supabase";
+import { functionAuthHeaders, supabase } from "@/lib/supabase";
 
 import type { ActivityType } from "./types";
 
@@ -71,7 +71,10 @@ export function parseTalentAi<T extends TalentAiBase>(raw: unknown, kind: "ask" 
 }
 
 async function call(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke("tania-assistant", { body: { mode: "talent", ...body } });
+  const { data, error } = await supabase.functions.invoke("tania-assistant", {
+    body: { mode: "talent", ...body },
+    headers: await functionAuthHeaders(),
+  });
   if (error) {
     let message = "Talent AI sedang tidak tersedia. Coba lagi nanti.";
     if (error instanceof FunctionsHttpError) {

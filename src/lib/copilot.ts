@@ -1,6 +1,6 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 
-import { supabase } from "./supabase";
+import { functionAuthHeaders, supabase } from "./supabase";
 import type { UserRole } from "./types";
 
 // Contract (PRD §11.1): POST /functions/v1/tania-assistant with the session JWT.
@@ -18,7 +18,10 @@ interface BriefingReply {
 }
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke<T>("tania-assistant", { body });
+  const { data, error } = await supabase.functions.invoke<T>("tania-assistant", {
+    body,
+    headers: await functionAuthHeaders(),
+  });
   if (error) {
     let message = "Copilot sedang tidak tersedia. Coba lagi nanti.";
     if (error instanceof FunctionsHttpError) {

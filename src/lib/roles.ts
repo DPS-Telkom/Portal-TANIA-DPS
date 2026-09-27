@@ -35,6 +35,7 @@ const MEMBERS: UserRole[] = ["talent", "pm", "manager", "chapter_lead", "hr", "e
 
 // Menu visibility is UX only; RLS is the enforcement (CLAUDE.md §2.2).
 export const NAV_ITEMS: NavItem[] = [
+  { href: "/beranda", label: "Beranda", roles: MEMBERS, available: true },
   { href: "/dashboard", label: "Dashboard", roles: MEMBERS, available: true },
   { href: "/talent/profil", label: "Profil Saya", roles: MEMBERS, available: true },
   { href: "/talent", label: "Talent", roles: MEMBERS, available: true },
@@ -56,5 +57,5 @@ export function isMember(role: UserRole | null | undefined, isActive: boolean | 
 
 /** Where a signed-in user belongs right after login. */
 export function homeFor(role: UserRole | null | undefined, isActive: boolean | undefined) {
-  return isMember(role, isActive) ? "/dashboard" : "/menunggu-akses";
+  return isMember(role, isActive) ? "/beranda" : "/menunggu-akses";
 }

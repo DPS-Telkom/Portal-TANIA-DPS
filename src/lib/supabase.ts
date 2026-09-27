@@ -22,3 +22,15 @@ export const supabase = createClient<Database>(
   anonKey || "not-configured",
   { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } },
 );
+
+/**
+ * Authorization header for Edge Function calls. functions.invoke() only picks
+ * up the user token on SIGNED_IN / TOKEN_REFRESHED, not on a session restored
+ * from storage after a reload — so pass it explicitly (getSession refreshes
+ * an expired token first).
+ */
+export async function functionAuthHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
