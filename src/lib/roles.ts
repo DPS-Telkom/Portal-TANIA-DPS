@@ -35,7 +35,7 @@ const MEMBERS: UserRole[] = ["talent", "pm", "manager", "chapter_lead", "executi
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", roles: MEMBERS, available: true },
   { href: "/talent", label: "Talent", roles: MEMBERS, available: false },
-  { href: "/timesheet", label: "Timesheet", roles: MEMBERS, available: false },
+  { href: "/timesheet", label: "Timesheet", roles: MEMBERS, available: true },
   { href: "/workload", label: "Workload", roles: MEMBERS, available: false },
   { href: "/feasibility", label: "Feasibility", roles: MEMBERS, available: false },
   {
