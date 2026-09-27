@@ -131,7 +131,7 @@ export function RecommendedJourney({
               <div className="text-xs text-muted-foreground uppercase">Target</div>
               <div className="text-lg font-semibold">{journey.target_role}</div>
               <p className="text-sm">{journey.objective}</p>
-              <p className="text-xs text-muted-foreground">Durasi {journey.duration_months} bulan</p>
+              {journey.duration_months > 0 && <p className="text-xs text-muted-foreground">Durasi {journey.duration_months} bulan</p>}
             </div>
             <ol className="space-y-3 border-l-2 pl-4">
               {months.map((m) => (
@@ -156,7 +156,12 @@ export function RecommendedJourney({
               <summary className="cursor-pointer text-sm text-muted-foreground">Dasar rekomendasi (FACT / INFERENCE / UNKNOWN)</summary>
               <ClassifiedAnswer data={journey} className="mt-2" />
             </details>
-            {perms.canDevelop ? (
+            {journey.steps.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                AI belum dapat menyusun langkah journey dari data yang ada. Lengkapi capability, target, atau evidence,
+                lalu coba lagi.
+              </p>
+            ) : perms.canDevelop ? (
               <Button onClick={saveAsPlan} disabled={saving}>
                 {saving ? "Menyimpan…" : "Jadikan development plan"}
               </Button>

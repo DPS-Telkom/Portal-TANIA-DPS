@@ -105,7 +105,7 @@ Both are `security_invoker` → results already respect the caller's RLS.
 - Endpoint contract — `POST /functions/v1/tania-assistant`, header `Authorization: Bearer <session access_token>`:
   - Chat: `{ mode: "chat", message, conversation_id? }` → `{ conversation_id, reply }`
   - Briefing: `{ mode: "briefing", force? }` → `{ reply, cached }` — cached per user per day in `copilot_briefings`; frontend calls it once on dashboard load. `force:true` only from an explicit refresh button.
-- Cost caps — do not raise without approval: model Haiku, max_tokens 1024, history 12 messages, question 2000 chars, briefing 1/user/day.
+- Cost caps — do not raise without approval: model Haiku, max_tokens 1024 (approved exception: Talent AI `journey` = 2048), history 12 messages, question 2000 chars, briefing 1/user/day.
 - Copilot UI: dashboard uses a docked right panel (360px, bottom sheet on mobile) with role-based suggestion chips; other pages use the floating bubble. Answers render as markdown (bold numbers). KPI alert badges (utilization >100%, budget ≥80%/100%) are plain threshold logic — no LLM.
 
 ## 5. Frontend conventions
@@ -210,3 +210,5 @@ docs/             # requirement doc, addendum, guides, runbooks
 - 2026-09-28: Unit tests use Vitest (`npm test`, `src/**/*.test.ts`); pure logic lives in `src/lib/talent-profile/calc.ts` and `permissions.ts`. Demo talent data only via `scripts/seed-talent-demo.mjs` (local, service role, `is_demo`, `--clean`).
 - 2026-09-28: AI endpoint is configuration: `AI_BASE_URL=https://router.bynara.id` (ByNara, Anthropic-compatible `/v1/messages`), key `AI_API_KEY`, model `AI_MODEL` (default `claude-haiku-4-5`). Unset `AI_BASE_URL` to return to Anthropic directly. Talent AI retries once without `output_config` if the gateway rejects structured outputs, then validates the JSON. RISK (open, AG-09): talent/HR/performance data now transits a third-party router — confirm ByNara data retention & location before production use.
 - 2026-09-28: Endpoint switched from ByNara to Telkom MIDAS staging (`AI_BASE_URL=https://midas-stage.telkomdigital.id`, `AI_AUTH_SCHEME=bearer`, `AI_MODEL=haiku-4.5`); MIDAS exposes Anthropic-compatible `/v1/messages` with `Authorization: Bearer`. The client always passes both `apiKey` and `authToken` explicitly so the SDK never falls back to `ANTHROPIC_*` env vars. MIDAS is a *staging* gateway — plan the production endpoint before go-live.
+- 2026-09-28: Approved cap exception: Talent AI `journey` uses max_tokens 2048 (its classified 4–8 step plan truncates at 1024); every other call stays at 1024.
+- 2026-09-28: Telkom MIDAS returns OpenAI chat.completions even on /v1/messages, so `ai.ts` adds `AI_API_FORMAT=openai` (tools ↔ function calling, response_format json_schema). Talent AI extracts the JSON object from the reply and retries once with the schema in the prompt when a gateway ignores JSON mode. Unhandled errors now always return JSON with CORS headers.

@@ -14,29 +14,11 @@
 import Anthropic from "npm:@anthropic-ai/sdk@0.128.0";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.117.2";
 
+import { createAiClient, errorStatus, errorText } from "./ai.ts";
 import { compactContext, handleTalent, loadTalentContext, type TalentKind } from "./talent.ts";
 
-// Provider is configuration, not code (decision 2026-09-28):
-//   default     → Anthropic API directly with ANTHROPIC_API_KEY
-//   AI_BASE_URL → an Anthropic-compatible gateway (e.g. ByNara router) with
-//                 its OWN key AI_API_KEY. The Anthropic key is never sent to
-//                 a third-party gateway.
-const AI_BASE_URL = Deno.env.get("AI_BASE_URL")?.trim() || undefined;
-const MODEL = Deno.env.get("AI_MODEL")?.trim() || "claude-haiku-4-5";
-const AI_KEY = AI_BASE_URL ? Deno.env.get("AI_API_KEY") : Deno.env.get("ANTHROPIC_API_KEY");
-// Gateways differ in auth header: "x-api-key" (default) or "bearer"
-// (Authorization: Bearer …, e.g. Telkom MIDAS).
-const AI_AUTH_SCHEME = (Deno.env.get("AI_AUTH_SCHEME") ?? "x-api-key").trim().toLowerCase();
-
-function modelClient(): Anthropic | null {
-  if (!AI_KEY) return null;
-  // Both credentials are always passed explicitly: the SDK would otherwise
-  // read ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN from the environment and
-  // could forward the Anthropic key to a third-party gateway.
-  return AI_BASE_URL && AI_AUTH_SCHEME === "bearer"
-    ? new Anthropic({ apiKey: null, authToken: AI_KEY, baseURL: AI_BASE_URL })
-    : new Anthropic({ apiKey: AI_KEY, authToken: null, baseURL: AI_BASE_URL });
-}
+// Provider is configuration, not code — see ai.ts (AI_API_FORMAT, AI_BASE_URL,
+// AI_API_KEY, AI_AUTH_SCHEME, AI_MODEL).
 const MAX_TOKENS = 1024;
 const HISTORY_LIMIT = 12;
 const MAX_QUESTION_CHARS = 2000;
@@ -425,24 +407,32 @@ async function briefingSnapshot(db: SupabaseClient, caller: Caller) {
 
 /** User-facing message for a failed model call. */
 function modelErrorMessage(e: unknown): string {
-  if (e instanceof Anthropic.APIError && /credit balance|insufficient|quota|saldo|balance/i.test(String(e.message))) {
+  const status = errorStatus(e);
+  if (status !== undefined && /credit balance|insufficient|quota|saldo|balance/i.test(errorText(e))) {
     return "Copilot sementara tidak aktif: kredit penyedia AI habis. Hubungi Admin TANIA.";
   }
-  if (e instanceof Anthropic.RateLimitError) return "Copilot sedang sibuk. Coba lagi dalam beberapa saat.";
+  if (status === 429) return "Copilot sedang sibuk. Coba lagi dalam beberapa saat.";
   return "Copilot sedang tidak tersedia. Coba lagi nanti.";
 }
 
 /** Non-secret diagnostic code for a failed model call (shown to the UI). */
 function modelErrorCode(e: unknown): string {
-  if (e instanceof Anthropic.APIError) {
-    // Provider error messages carry no secrets (e.g. "credit balance is too low").
-    const detail = String(e.message ?? "").replace(/\s+/g, " ").slice(0, 160);
-    return `ai_${e.status ?? "error"}: ${detail}`;
+  const status = errorStatus(e);
+  // Provider error messages carry no secrets (e.g. "credit balance is too low").
+  const detail = errorText(e).replace(/\s+/g, " ").slice(0, 160);
+  return status !== undefined ? `ai_${status}: ${detail}` : `ai_unreachable: ${detail}`;
+}
+
+/** Throws a diagnosable error when a gateway returns a non-Anthropic shape. */
+function assertMessage(message: Anthropic.Message): void {
+  if (!message || !Array.isArray((message as { content?: unknown }).content)) {
+    const keys = message && typeof message === "object" ? Object.keys(message).slice(0, 12).join(",") : typeof message;
+    throw new Error(`gateway response is not an Anthropic Message (keys: ${keys})`);
   }
-  return "ai_unreachable";
 }
 
 function textOf(message: Anthropic.Message): string {
+  assertMessage(message);
   return message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
@@ -453,7 +443,7 @@ function textOf(message: Anthropic.Message): string {
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
-Deno.serve(async (req) => {
+async function handle(req: Request): Promise<Response> {
   const origin = req.headers.get("Origin");
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
@@ -495,7 +485,7 @@ Deno.serve(async (req) => {
     return json({ error: "Permintaan tidak valid." }, 400, origin);
   }
 
-  const anthropic = modelClient();
+  const ai = createAiClient();
   const { data: settings } = await db.from("app_settings").select("key, value");
   const setting = (k: string, d: number) => Number(settings?.find((r) => r.key === k)?.value ?? d);
 
@@ -517,19 +507,18 @@ Deno.serve(async (req) => {
         origin,
       );
     }
-    if (!anthropic) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
+    if (!ai) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
 
     const snapshot = await briefingSnapshot(db, caller);
     let message: Anthropic.Message;
     try {
-      message = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
+      message = await ai.create({
+        maxTokens: MAX_TOKENS,
         system: BRIEFING_SYSTEM,
         messages: [{ role: "user", content: `Snapshot data (JSON):\n${JSON.stringify(snapshot)}` }],
       });
     } catch (e) {
-      console.error("briefing model error", e instanceof Anthropic.APIError ? e.status : e);
+      console.error("briefing model error", errorStatus(e) ?? e);
       return json({ error: modelErrorMessage(e), code: modelErrorCode(e) }, 502, origin);
     }
     const reply =
@@ -541,7 +530,7 @@ Deno.serve(async (req) => {
           .from("copilot_briefings")
           .update({
             content: reply,
-            model: MODEL,
+            model: ai.model,
             // cumulative, so the monthly cost report counts refreshes too
             input_tokens: (existing.input_tokens ?? 0) + usage.in,
             output_tokens: (existing.output_tokens ?? 0) + usage.out,
@@ -551,7 +540,7 @@ Deno.serve(async (req) => {
       : await db.from("copilot_briefings").insert({
           briefing_date: today,
           content: reply,
-          model: MODEL,
+          model: ai.model,
           input_tokens: usage.in,
           output_tokens: usage.out,
         });
@@ -567,10 +556,9 @@ Deno.serve(async (req) => {
     }
     const out = await handleTalent(
       db,
-      anthropic,
+      ai,
       { kind, profileId: body.profile_id, question: body.message, force: body.force },
       { daily: setting("copilot_daily_message_limit", 50), insightPerDay: setting("copilot_daily_briefing_limit", 5) },
-      MODEL,
       MAX_TOKENS,
       (e) => ({ error: modelErrorMessage(e), code: modelErrorCode(e) }),
     );
@@ -597,7 +585,7 @@ Deno.serve(async (req) => {
   if ((usedToday ?? 0) >= limit) {
     return json({ error: `Batas ${limit} pertanyaan per hari sudah tercapai. Coba lagi besok.` }, 429, origin);
   }
-  if (!anthropic) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
+  if (!ai) return json({ error: "Copilot belum dikonfigurasi (API key belum dipasang)." }, 503, origin);
 
   // Conversation: reuse only if it belongs to the caller (RLS), else create.
   let conversationId: string | null = null;
@@ -640,13 +628,12 @@ Deno.serve(async (req) => {
   try {
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const lastRound = round === MAX_TOOL_ROUNDS;
-      const response = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
+      const response = await ai.create({
+        maxTokens: MAX_TOKENS,
         system,
         tools: TOOLS,
         // On the last round the model must answer with what it has.
-        tool_choice: lastRound ? { type: "none" } : { type: "auto" },
+        toolChoice: lastRound ? "none" : "auto",
         messages,
       });
       inputTokens += response.usage.input_tokens;
@@ -686,7 +673,7 @@ Deno.serve(async (req) => {
       messages.push({ role: "user", content: results });
     }
   } catch (e) {
-    console.error("chat model error", e instanceof Anthropic.APIError ? e.status : e);
+    console.error("chat model error", errorStatus(e) ?? e);
     return json(
       { error: modelErrorMessage(e), code: modelErrorCode(e), conversation_id: conversationId },
       502,
@@ -700,11 +687,23 @@ Deno.serve(async (req) => {
     conversation_id: conversationId,
     role: "assistant",
     content: reply,
-    model: MODEL,
+    model: ai.model,
     input_tokens: inputTokens,
     output_tokens: outputTokens,
   });
   await db.from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
 
   return json({ conversation_id: conversationId, reply }, 200, origin);
+}
+
+// Every response — including unexpected failures — carries CORS headers so
+// the browser can read the error instead of a bare "Failed to fetch".
+Deno.serve(async (req) => {
+  try {
+    return await handle(req);
+  } catch (e) {
+    console.error("unhandled", e);
+    const detail = e instanceof Error ? `${e.name}: ${e.message}`.slice(0, 200) : "unknown";
+    return json({ error: "Copilot mengalami kesalahan internal. Coba lagi.", code: `internal: ${detail}` }, 500, req.headers.get("Origin"));
+  }
 });

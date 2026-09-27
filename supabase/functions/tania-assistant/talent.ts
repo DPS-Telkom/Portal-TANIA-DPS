@@ -11,6 +11,8 @@
 import Anthropic from "npm:@anthropic-ai/sdk@0.128.0";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.117.2";
 
+import { errorStatus, isBadRequest, type AiClient } from "./ai.ts";
+
 export type TalentKind = "ask" | "insight" | "journey";
 
 const statement = {
@@ -113,7 +115,7 @@ const TASKS: Record<TalentKind, string> = {
   insight:
     "Buat AI Insight profil: `strongest_capability` (nama capability/kompetensi terkuat berdasarkan data, atau null bila tidak ada data), `development_focus` (area gap terbesar atau null), dan `answer` maks. 3 kalimat.",
   journey:
-    "Susun Recommended Talent Journey 3–6 bulan menuju target (pakai target dari pengguna bila ada; jika tidak, turunkan dari gap terbesar). `steps` satu atau lebih per bulan: learning, certification, project assignment, mentoring, lalu assessment ulang di bulan terakhir. `answer` = ringkasan 2–3 kalimat.",
+    "Susun Recommended Talent Journey 3–6 bulan menuju target (pakai target dari pengguna bila ada; jika tidak, turunkan dari gap terbesar). `steps` WAJIB berisi 4–8 langkah (satu atau lebih per bulan), setiap `title` maks. 8 kata dan `rationale` maks. 15 kata: learning, certification, project assignment, mentoring, lalu assessment ulang di bulan terakhir; `duration_months` = bulan terakhir. Journey adalah REKOMENDASI, jadi boleh disusun walau data profil minim: dasarkan pada kebutuhan umum target role, catat setiap asumsi di `unknowns`, dan turunkan `confidence`. Yang dilarang hanya mengarang FAKTA tentang talent. `answer` = ringkasan maks. 2 kalimat. Batasi facts, inferences, recommendations, unknowns masing-masing maks. 4 item singkat.",
 };
 
 export interface TalentRequest {
@@ -155,12 +157,39 @@ export async function loadTalentContext(db: SupabaseClient, profileId: string) {
   return (data ?? null) as Record<string, unknown> | null;
 }
 
+function textOnly(message: Anthropic.Message): string {
+  return message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+}
+
+/** Extracts the answer object: whole text, a fenced block, or the outermost {…}. */
+export function parseAnswer(message: Anthropic.Message): Record<string, unknown> | null {
+  const text = textOnly(message);
+  const candidates = [
+    text,
+    text.replace(/^`{3}(?:json)?\s*/i, "").replace(/\s*`{3}$/, ""),
+    text.includes("{") ? text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1) : "",
+  ];
+  for (const c of candidates) {
+    if (!c) continue;
+    try {
+      const v = JSON.parse(c);
+      if (v && typeof v === "object" && typeof (v as { answer?: unknown }).answer === "string") return v;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
 export async function handleTalent(
   db: SupabaseClient,
-  anthropic: Anthropic | null,
+  ai: AiClient | null,
   req: TalentRequest,
   limits: { daily: number; insightPerDay: number },
-  model: string,
   maxTokens: number,
   errorBody: (e: unknown) => Record<string, unknown>,
 ): Promise<TalentResult> {
@@ -205,7 +234,7 @@ export async function handleTalent(
   if (!context) {
     return { status: 403, body: { error: "Anda tidak memiliki akses ke profil talent ini." } };
   }
-  if (!anthropic) return { status: 503, body: { error: "Copilot belum dikonfigurasi (API key belum dipasang)." } };
+  if (!ai) return { status: 503, body: { error: "Copilot belum dikonfigurasi (API key belum dipasang)." } };
 
   const userText = [
     `TASK: ${TASKS[req.kind]}`,
@@ -217,32 +246,32 @@ export async function handleTalent(
     .filter(Boolean)
     .join("\n");
 
-  const maxOut = req.kind === "journey" ? Math.max(maxTokens, 1536) : maxTokens;
+  // CLAUDE.md §4 cap is 1024; the journey kind alone is approved for 2048
+  // (decision 2026-09-28) because its classified multi-step plan does not fit.
+  const maxOut = req.kind === "journey" ? 2048 : maxTokens;
   let message: Anthropic.Message;
   try {
-    message = await anthropic.messages.create({
-      model,
-      max_tokens: maxOut,
+    message = await ai.create({
+      maxTokens: maxOut,
       system: RULES,
-      output_config: { format: { type: "json_schema", schema: SCHEMAS[req.kind] } },
+      jsonSchema: SCHEMAS[req.kind],
       messages: [{ role: "user", content: userText }],
     });
   } catch (e) {
     // Gateways/models without structured outputs: retry once with the schema
     // in the prompt; the response is still parsed and validated below.
-    if (!(e instanceof Anthropic.BadRequestError)) {
-      console.error("talent model error", e instanceof Anthropic.APIError ? e.status : e);
+    if (!isBadRequest(e)) {
+      console.error("talent model error", errorStatus(e) ?? e);
       return { status: 502, body: errorBody(e) };
     }
     try {
-      message = await anthropic.messages.create({
-        model,
-        max_tokens: maxOut,
+      message = await ai.create({
+        maxTokens: maxOut,
         system: `${RULES}\nBalas HANYA dengan satu objek JSON valid (tanpa teks lain, tanpa markdown) yang mengikuti JSON Schema berikut:\n${JSON.stringify(SCHEMAS[req.kind])}`,
         messages: [{ role: "user", content: userText }],
       });
     } catch (e2) {
-      console.error("talent model error (fallback)", e2 instanceof Anthropic.APIError ? e2.status : e2);
+      console.error("talent model error (fallback)", errorStatus(e2) ?? e2);
       return { status: 502, body: errorBody(e2) };
     }
   }
@@ -250,17 +279,31 @@ export async function handleTalent(
   if (message.stop_reason === "refusal") {
     return { status: 200, body: { error: "Permintaan ini tidak dapat diproses." } };
   }
-  const text = message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  let result: Record<string, unknown>;
-  try {
-    // Tolerate a ```json fence from models without structured outputs.
-    const body = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-    result = JSON.parse(body);
-    if (!result || typeof result !== "object" || typeof result.answer !== "string") throw new Error("shape");
-  } catch {
+  let result = parseAnswer(message);
+  // Tokens of every attempt are billed, so all of them are logged.
+  let inputTokens = message.usage.input_tokens;
+  let outputTokens = message.usage.output_tokens;
+
+  // Some gateways accept but ignore JSON-schema mode; retry once with the
+  // schema spelled out in the prompt before giving up.
+  if (!result && message.stop_reason !== "max_tokens") {
+    try {
+      const retry = await ai.create({
+        maxTokens: maxOut,
+        system: `${RULES}\nBalas HANYA dengan satu objek JSON valid (tanpa teks lain, tanpa markdown) yang mengikuti JSON Schema berikut:\n${JSON.stringify(SCHEMAS[req.kind])}`,
+        messages: [{ role: "user", content: userText }],
+      });
+      message = retry;
+      inputTokens += retry.usage.input_tokens;
+      outputTokens += retry.usage.output_tokens;
+      result = parseAnswer(retry);
+    } catch (e) {
+      console.error("talent model error (json retry)", errorStatus(e) ?? e);
+    }
+  }
+
+  if (!result) {
+    const text = textOnly(message);
     return {
       status: 502,
       body: {
@@ -268,6 +311,8 @@ export async function handleTalent(
           message.stop_reason === "max_tokens"
             ? "Jawaban terlalu panjang — persempit pertanyaan."
             : "Format jawaban AI tidak valid. Coba lagi.",
+        // Diagnostic for the same (authorized) caller: why parsing failed.
+        code: `format: stop=${message.stop_reason} len=${text.length} start=${JSON.stringify(text.slice(0, 80))}`,
       },
     };
   }
@@ -277,9 +322,9 @@ export async function handleTalent(
     kind: req.kind,
     question: req.question?.trim() || null,
     response: result,
-    model,
-    input_tokens: message.usage.input_tokens,
-    output_tokens: message.usage.output_tokens,
+    model: ai.model,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
   });
   if (logError) console.error("talent log failed", logError.message);
 
