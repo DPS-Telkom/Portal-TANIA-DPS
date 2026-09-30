@@ -256,6 +256,7 @@ These are the components that need explicit product/engineering decisions before
 | AI provider | Current MVP supports Anthropic/MIDAS style | Backend provider abstraction with per-env config |
 | Deployment target | Affects Docker, networking, secrets, backups | Containerized VPS/Kubernetes-ready structure |
 | Design system | Svelte component consistency | Create shared component inventory before coding |
+| IAM foundation | Required for RBAC, sessions, user lifecycle, and token revocation | Build before business modules |
 | Personal API tokens | Lets users control TANIA without opening the web UI | Jira-like PAT generated/revoked from TANIA settings |
 
 ## 11. Migration Strategy

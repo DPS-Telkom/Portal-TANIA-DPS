@@ -6,7 +6,7 @@ This document describes the proposed production target architecture for rewritin
 
 - Preserve all current TANIA business features first.
 - Move from MVP/static Supabase access to a production application boundary.
-- Make authorization testable and enforceable in the backend.
+- Make IAM, authorization, and user lifecycle testable and enforceable in the backend.
 - Keep PostgreSQL as the source of truth.
 - Make deployment, backups, observability, and CI/CD production-ready.
 - Keep AI read-only and scoped to the caller's access.

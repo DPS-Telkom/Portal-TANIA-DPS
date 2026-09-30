@@ -8,6 +8,7 @@ Purpose: list the product and platform components needed for a production-grade 
 |---|---|---:|---|
 | Web app | SvelteKit app | Yes | Main user-facing portal |
 | API service | Go service | Yes | All business workflows, auth, policy, audit, AI tool execution |
+| IAM service/module | Go API module | Yes | Identity, sessions, user lifecycle, role assignment, PAT management |
 | PostgreSQL database | Database | Yes | Source of truth |
 | Migration runner | Platform/tooling | Yes | Schema changes through CI/CD only |
 | Background worker | Go service | Likely | Reminders, scheduled reports, heavy imports/exports, AI briefing generation |
