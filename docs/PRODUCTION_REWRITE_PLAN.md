@@ -360,6 +360,7 @@ CD should be environment-based:
 Before coding the rewrite, create and approve:
 
 - Feature parity matrix
+- Current-role RBAC matrix
 - Domain/data model v2
 - API boundary and OpenAPI draft
 - Component inventory
