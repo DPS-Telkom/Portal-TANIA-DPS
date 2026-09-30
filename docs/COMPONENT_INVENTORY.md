@@ -15,6 +15,7 @@ Purpose: list the product and platform components needed for a production-grade 
 | AI provider adapter | Backend component | Yes | MIDAS/Anthropic-compatible abstraction |
 | Notification adapter | Backend component | Should | Email/Teams/Telegram/other reminders later |
 | Admin console | Web module | Yes | Can live inside same SvelteKit app first |
+| API token settings | Web + API component | Yes | Jira-like personal access token management for external control |
 
 ## 2. Frontend UI Components
 
