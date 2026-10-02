@@ -21,30 +21,37 @@ This document describes the proposed production target architecture for rewritin
            |
            | HTTPS / JSON API
            v
-+---------------------+
-| Go API Service      |
-| - Auth/session      |
-| - Policy/RBAC       |
-| - Domain services   |
-| - Audit logging     |
-| - AI tools          |
-| - Import/export     |
-+----+-----------+----+
-     |           |
-     | SQL       | Optional job enqueue
-     v           v
-+----------+   +----------------+
-|PostgreSQL|   | Go Worker      |
-+----------+   | - reminders    |
-               | - reports      |
-               | - imports      |
-               | - AI briefings |
-               +----------------+
++------------------------------+
+| Go API Service               |
+| - IAM/auth/session/PAT       |
+| - Policy/RBAC                |
+| - Domain services            |
+| - Audit logging              |
+| - AI tools                   |
+| - Import/export orchestration|
++----+-------------+-----------+
+     |             |
+     | SQL         | Job enqueue / outbox
+     v             v
++------------+   +----------------+
+| PostgreSQL |   | Go Worker      |
+| instance   |   | - reminders    |
++------------+   | - reports      |
+     |           | - imports      |
+     |           | - exports      |
+     |           | - AI briefings |
+     |           +----------------+
+     v
++----------------+
+| Backup storage |
++----------------+
 
-Optional external services:
+External/runtime components:
 - Object storage for evidence/import/export files
+- Redis/cache/queue if needed beyond PostgreSQL outbox
 - AI provider / MIDAS / Anthropic-compatible gateway
 - Email or collaboration notification provider
+- Reverse proxy / TLS ingress
 - Observability stack
 ```
 
@@ -66,13 +73,19 @@ Go HTTP API. Owns auth, policy, workflows, validation, audit, database writes, A
 services/worker
 ```
 
-Optional Go worker. Owns scheduled/asynchronous work after the API foundation exists.
+Go worker. Owns scheduled/asynchronous work: reminders, imports, exports, briefing cache generation, cleanup, and notification delivery. Run as a separate process/container from the API.
+
+```text
+services/realtime
+```
+
+Optional later service for websocket/SSE push notifications. Do not build until polling is insufficient or realtime requirements are approved.
 
 ```text
 db
 ```
 
-PostgreSQL migrations, seeds, fixtures, and schema documentation.
+PostgreSQL migrations, seeds, fixtures, and schema documentation. PostgreSQL itself runs as a dedicated instance/runtime component, not inside the web/API container.
 
 ```text
 packages/api-client

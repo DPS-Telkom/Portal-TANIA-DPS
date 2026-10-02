@@ -28,22 +28,21 @@ Existing feature modules remain in scope first. The rewrite should not change pr
 │   ├── web/                  # SvelteKit frontend
 │   └── admin/                # Optional later: internal admin console if separated
 ├── services/
-│   ├── api/                  # Go backend HTTP API
-│   ├── worker/               # Optional Go background jobs
-│   └── ai-gateway/           # Optional if AI needs isolated runtime/policy
+│   ├── api/                  # Go backend HTTP API: IAM/RBAC/domain boundary
+│   ├── worker/               # Go background jobs: reminders/imports/exports
+│   ├── realtime/             # Optional later: websocket/SSE gateway
+│   └── ai-gateway/           # Optional later if AI needs isolation/scaling
 ├── packages/
 │   ├── api-client/           # Generated TypeScript client from OpenAPI
 │   ├── ui/                   # Shared Svelte UI components/design system
+│   ├── contracts/            # OpenAPI/schema artifacts if separated
 │   └── config/               # Shared lint/format/tsconfig tokens
 ├── db/
 │   ├── migrations/           # PostgreSQL migrations
 │   ├── seeds/                # Dev/demo seed data
 │   └── fixtures/             # Test fixtures
 ├── docs/
-│   ├── PRODUCTION_REWRITE_PLAN.md
-│   ├── PRODUCTION_ARCHITECTURE.md
-│   ├── FEATURE_PARITY_MATRIX.md
-│   └── COMPONENT_INVENTORY.md
+│   └── task/                 # Rewrite planning docs
 ├── deploy/
 │   ├── docker-compose/       # Local/prod-like compose
 │   ├── k8s/                  # Optional later
@@ -53,7 +52,7 @@ Existing feature modules remain in scope first. The rewrite should not change pr
     └── ci/
 ```
 
-Initial recommendation: keep `apps/web`, `services/api`, and `db` first. Add `worker`, `packages/ui`, and `packages/api-client` when the duplication or automation need is real.
+Initial recommendation: build `apps/web`, `services/api`, `services/worker`, `db`, and `packages/api-client` from the start. Keep IAM/RBAC/domain logic as modules inside `services/api` first; split `realtime`, `ai-gateway`, or notification services only when operational evidence requires it.
 
 ## 3. Feature Parity Boundary
 
@@ -86,7 +85,7 @@ SvelteKit Web App
   │  HTTPS + session/JWT
   ▼
 Go API Service
-  ├── Auth/session validation
+  ├── IAM/auth/session/PAT
   ├── RBAC/ABAC authorization
   ├── Domain services
   ├── Audit logging
@@ -94,13 +93,19 @@ Go API Service
   ├── AI copilot policy + tool execution
   └── OpenAPI contract
        │
-       ▼
+       ├── PostgreSQL primary instance
+       ├── Object storage
+       ├── Redis/cache or Postgres outbox if needed
+       └── Go Worker service for async/scheduled jobs
+
 PostgreSQL
+  ├── Dedicated runtime instance
   ├── App schema
   ├── Constraints
   ├── Views/materialized views where useful
   ├── Optional RLS for defense-in-depth
-  └── Migration-managed changes only
+  ├── Migration-managed changes only
+  └── Scheduled backups + restore runbook
 ```
 
 Key shift from MVP:
