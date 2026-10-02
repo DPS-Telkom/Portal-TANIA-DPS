@@ -369,7 +369,8 @@ Before coding the rewrite, create and approve:
 - Feature parity matrix
 - Current-role RBAC matrix
 - Domain/data model v2
-- API boundary and OpenAPI draft
+- API boundary, OpenAPI draft, and JSON-RPC/MCP method list
+- Frontend component standards/design-system baseline
 - Component inventory
 - Auth decision record
 - Deployment decision record

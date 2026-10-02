@@ -198,7 +198,13 @@ Recommended default: start with Go policy as the primary boundary, then add DB-l
 
 ## 7. API Architecture
 
-API style: REST JSON with OpenAPI.
+API style: hybrid REST/OpenAPI + JSON-RPC.
+
+- REST/OpenAPI is the default for web/frontend resource APIs and generated TypeScript clients.
+- JSON-RPC is reserved for bot/MCP command-style actions.
+- Raw SQL/raw query access is never exposed outside the backend repository layer.
+
+See `API_STYLE_AND_MCP_ACCESS.md` for the detailed recommendation.
 
 Initial route groups:
 

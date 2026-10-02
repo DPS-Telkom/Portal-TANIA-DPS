@@ -56,7 +56,7 @@ Recommended repository shape:
 | `services/worker` | Yes | Async jobs, scheduled tasks, imports/exports, reminders |
 | `services/realtime` | Later | Only if websocket/SSE load justifies a separate process |
 | `packages/api-client` | Yes | Generated TS client keeps FE/API contract typed |
-| `packages/ui` | Should | Shared Svelte design system once repeated components emerge |
+| `packages/ui` | Should | Shared Svelte design system once repeated components emerge; follow `FRONTEND_COMPONENT_STANDARDS.md` |
 | `packages/config` | Should | Shared ESLint/Prettier/TS/build config |
 | `db/migrations` | Yes | Source-controlled PostgreSQL schema changes |
 | `deploy/docker-compose` | Yes | Local and prod-like environment |
