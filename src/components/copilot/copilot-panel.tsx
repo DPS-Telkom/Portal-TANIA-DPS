@@ -154,7 +154,9 @@ export function CopilotPanel({
     >
       <header className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <div className="flex items-center gap-2">
-          <span className="grid size-7 place-items-center rounded-full bg-telkom-red text-xs font-bold text-white">AI</span>
+          {/* Static portrait of the avatar model: one WebGL scene (the launcher) is enough. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- static export, local asset */}
+          <img src="/brand/tania.webp" alt="" className="size-8 rounded-full border border-telkom-red object-cover" />
           <div>
             <div className="text-sm font-semibold leading-tight">TANIA Copilot</div>
             <div className="text-[11px] text-muted-foreground">Read-only · sesuai hak akses Anda</div>
